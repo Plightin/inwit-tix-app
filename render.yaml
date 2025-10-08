@@ -2,16 +2,18 @@
 
 databases:
   - name: inwit-tix-db
-    plan: free # UPDATED: Reverted to the free plan
+    plan: free
 
 services:
   - name: inwit-tix-app
     type: web
     env: docker
-    plan: free # UPDATED: Reverted to the free plan
+    plan: free
     healthCheckPath: /
-    # Use a pre-deploy command for database initialization
-    preDeployCommand: "flask db-init"
+    # UPDATED: Moved the database initialization back to the build command
+    buildCommand: |
+      pip install -r requirements.txt
+      flask db-init
     envVars:
       - key: FLASK_APP
         value: app:app
