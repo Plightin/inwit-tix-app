@@ -9,10 +9,10 @@ services:
   - type: web
     name: inwit-tix-app
     plan: free
-    # Tell Render to use the Docker environment
     env: docker
-    # Render will automatically find and use the Dockerfile in your repository
     healthCheckPath: /
+    # Add an initCommand to create the database tables before starting
+    initCommand: "flask db-init"
     envVars:
       - key: SECRET_KEY
         generateValue: true
