@@ -2,17 +2,17 @@
 
 databases:
   - name: inwit-tix-db
-    region: frankfurt
+    # REMOVED: The region key is removed to avoid conflicts with existing services.
     plan: free
 
 services:
   - name: inwit-tix-app
     type: web
-    region: frankfurt
+    # REMOVED: The region key is removed to avoid conflicts with existing services.
     env: docker
     plan: free
     healthCheckPath: /
-    # UPDATED: The database initialization is now part of the build command
+    # The database initialization is now part of the build command
     buildCommand: |
       pip install -r requirements.txt
       flask db-init
