@@ -2,13 +2,13 @@
 
 databases:
   - name: inwit-tix-db
-    plan: starter # UPDATED: Upgraded from free to starter plan
+    plan: starter_plus # UPDATED: Upgraded to a non-legacy paid plan
 
 services:
   - name: inwit-tix-app
     type: web
     env: docker
-    plan: starter # UPDATED: Upgraded from free to starter plan
+    plan: starter # The starter plan for web services is still valid
     healthCheckPath: /
     # Use a pre-deploy command for database initialization
     preDeployCommand: "flask db-init"
