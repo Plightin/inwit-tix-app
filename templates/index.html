@@ -1,1 +1,57 @@
+{% extends 'layout.html' %}
+{% block title %}Upcoming Events{% endblock %}
+{% block content %}
+    <h1>Upcoming Events in Zambia</h1>
+    <div class="event-grid">
+        {% for event in events %}
+            <div class="card">
+                <div class="event-image-container">
+                    <img src="{{ url_for('static', filename='uploads/' + event.artwork) }}" alt="{{ event.name }}" class="event-image">
+                </div>
+                <h2>{{ event.name }}</h2>
+                <div class="event-meta">
+                    <span>{{ event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</span> | <span>{{ event.venue }}</span>
+                </div>
+                <p>{{ event.description }}</p>
+                
+                <!-- UPDATED: Display the starting price -->
+                {% if event.price_ordinary %}
+                <p class="price">Price from K{{ "%.2f"|format(event.price_ordinary) }}</p>
+                {% else %}
+                <p class="price">See details for pricing</p>
+                {% endif %}
+
+                <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn">View Details & Buy Ticket</a>
+                
+                <div class="share-container">
+                    <div class="share-buttons">
+                        <span>Share:</span>
+                        <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn facebook">f</a>
+                        <a href="https://wa.me/?text=Check out this event: {{ event.name }} at {{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn whatsapp">w</a>
+                        <a href="#" class="share-btn instagram">i</a>
+                        <button class="share-btn copy-link" onclick="copyLink('{{ request.url_root }}event/{{ event.id }}')">c</button>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <p>No events scheduled yet. Please check back later!</p>
+        {% endfor %}
+    </div>
+
+<script>
+function copyLink(text) {
+    // A simple function to copy the event link to the clipboard
+    const input = document.createElement('input');
+    input.style.position = 'fixed';
+    input.style.opacity = 0;
+    input.value = text;
+    document.body.appendChild(input);
+    input.select();
+    document.execCommand('copy');
+    document.body.removeChild(input);
+    alert('Event link copied to clipboard!');
+}
+</script>
+
+{% endblock %}
 

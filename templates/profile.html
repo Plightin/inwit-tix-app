@@ -1,0 +1,49 @@
+{% extends 'layout.html' %}
+{% block title %}My Profile{% endblock %}
+{% block content %}
+    <h1>Hello, {{ current_user.username }}!</h1>
+    <hr>
+    
+    <h2>My Tickets</h2>
+    {% if tickets %}
+        <div class="event-grid">
+            {% for ticket in tickets %}
+                <div class="card">
+                    <h3>{{ ticket.event.name }}</h3>
+                    <div class="event-meta">
+                        <p><strong>Date:</strong> {{ ticket.event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</p>
+                        <p><strong>Venue:</strong> {{ ticket.event.venue }}</p>
+                    </div>
+                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>You haven't purchased any tickets yet.</p>
+    {% endif %}
+
+    <hr style="margin-top: 40px;">
+
+    <h2>My Events</h2>
+    <p>These are the events you have created.</p>
+    {% if events %}
+        <div class="event-grid">
+            {% for event in events %}
+                 <div class="card">
+                    <img src="{{ url_for('static', filename='uploads/' + event.artwork) }}" alt="{{ event.name }}" class="event-image">
+                    <h3>{{ event.name }}</h3>
+                    <div class="event-meta">
+                         <p><strong>Date:</strong> {{ event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</p>
+                         <p><strong>Venue:</strong> {{ event.venue }}</p>
+                    </div>
+                    <p>{{ event.description }}</p>
+                    <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn">View Event Page</a>
+                </div>
+            {% endfor %}
+        </div>
+    {% else %}
+        <p>You haven't created any events yet.</p>
+    {% endif %}
+
+{% endblock %}
+

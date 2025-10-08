@@ -1,0 +1,22 @@
+{% extends 'layout.html' %}
+{% block title %}Your Ticket{% endblock %}
+{% block content %}
+    <h1>Your Digital Ticket</h1>
+    <div class="ticket-card">
+        <h2>{{ ticket.event.name }}</h2>
+        <p><strong>Ticket Holder:</strong> {{ ticket.owner.username }}</p>
+        <p><strong>Event Date:</strong> {{ ticket.event.event_datetime.strftime('%A, %B %d, %Y at %I:%M %p') }}</p>
+        <p><strong>Venue:</strong> {{ ticket.event.venue }}</p>
+        <p><strong>Ticket ID (UID):</strong> <code>{{ ticket.ticket_uid }}</code></p>
+        <div class="qr-code">
+            <img src="data:image/png;base64,{{ qr_code_img }}" alt="Ticket QR Code">
+        </div>
+        <p class="instructions">
+            Present this QR code at the event entrance for scanning. This is your proof of purchase.
+        </p>
+
+        <!-- This is the Download Button -->
+        <a href="{{ url_for('download_ticket', ticket_id=ticket.id) }}" class="btn" style="margin-top: 20px;">Download PDF</a>
+    </div>
+{% endblock %}
+

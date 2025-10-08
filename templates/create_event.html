@@ -1,0 +1,46 @@
+{% extends 'layout.html' %}
+{% block title %}Create New Event{% endblock %}
+{% block content %}
+    <h1>Create a New Event</h1>
+    <form action="{{ url_for('create_event') }}" method="post" class="form-card" enctype="multipart/form-data">
+        <div class="form-group">
+            <label for="name">Event Name:</label>
+            <input type="text" id="name" name="name" required>
+        </div>
+        <div class="form-group">
+            <label for="description">Description:</label>
+            <textarea id="description" name="description" rows="4" required></textarea>
+        </div>
+        <div class="form-group">
+            <label for="event_datetime">Date and Time:</label>
+            <input type="datetime-local" id="event_datetime" name="event_datetime" required>
+        </div>
+        <div class="form-group">
+            <label for="venue">Venue:</label>
+            <input type="text" id="venue" name="venue" required>
+        </div>
+        <div class="form-group">
+            <label for="artwork">Event Artwork (JPG or PNG, max 2MB):</label>
+            <input type="file" id="artwork" name="artwork" accept=".jpg, .jpeg, .png" required>
+        </div>
+
+        <hr>
+        <h3>Ticket Pricing</h3>
+        <p>Enter a price for each ticket type you want to offer. Leave blank if not available.</p>
+        <div class="form-group">
+            <label for="price_ordinary">Ordinary Ticket Price (K):</label>
+            <input type="number" id="price_ordinary" name="price_ordinary" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+            <label for="price_vip">VIP Ticket Price (K):</label>
+            <input type="number" id="price_vip" name="price_vip" step="0.01" min="0">
+        </div>
+        <div class="form-group">
+            <label for="price_vvip">VVIP Ticket Price (K):</label>
+            <input type="number" id="price_vvip" name="price_vvip" step="0.01" min="0">
+        </div>
+
+        <button type="submit" class="btn">Create Event</button>
+    </form>
+{% endblock %}
+
