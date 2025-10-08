@@ -1,12 +1,12 @@
 # Blueprint for deploying Inwit Tix on Render
 
-services:
-  # A PostgreSQL database for our application
-  - type: psql
-    name: inwit-tix-db
+# UPDATED: Databases are defined in their own top-level section
+databases:
+  - name: inwit-tix-db
     plan: free # Can be upgraded later
-    # Render will automatically set the DATABASE_URL environment variable
+    # Render will automatically set the DATABASE_URL environment variable for the app
 
+services:
   # The main Flask web application
   - type: web
     name: inwit-tix-app
@@ -24,8 +24,8 @@ services:
       - key: SECRET_KEY
         generateValue: true # Render will generate a secure secret key
       - key: DATABASE_URL
-        fromService:
-          type: psql
+        # UPDATED: Reference the database correctly using 'fromDatabase'
+        fromDatabase:
           name: inwit-tix-db
           property: connectionString
       - key: UPLOAD_FOLDER
@@ -34,5 +34,4 @@ services:
       name: uploads-disk
       mountPath: /var/data/uploads
       sizeGB: 1
-
 
