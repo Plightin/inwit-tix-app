@@ -1,33 +1,23 @@
-# Blueprint for deploying Inwit Tix on Render
+# Blueprint for deploying Inwit Tix on Render using Docker
 
-# UPDATED: Databases are defined in their own top-level section
 databases:
   - name: inwit-tix-db
-    plan: free # Can be upgraded later
-    # Render will automatically set the DATABASE_URL environment variable for the app
+    plan: free
 
 services:
-  # The main Flask web application
+  # The main Flask web application, now built from a Dockerfile
   - type: web
     name: inwit-tix-app
-    env: python
-    plan: free # Can be upgraded later
-    buildCommand: |
-      pip install -r requirements.txt
-      # Install system libraries required by WeasyPrint for PDF generation
-      apt-get update && apt-get install -y libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz0b
-    startCommand: "gunicorn app:app"
+    plan: free
+    # Tell Render to use the Docker environment
+    env: docker
+    # Render will automatically find and use the Dockerfile in your repository
     healthCheckPath: /
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.5
       - key: SECRET_KEY
-        generateValue: true # Render will generate a secure secret key
+        generateValue: true
       - key: DATABASE_URL
-        # UPDATED: Reference the database correctly using 'fromDatabase'
         fromDatabase:
           name: inwit-tix-db
           property: connectionString
-    # REMOVED: The 'disk' and 'UPLOAD_FOLDER' sections are not supported on the free plan.
-    # We will replace this with a cloud storage solution like AWS S3.
 
