@@ -2,7 +2,7 @@
 
 services:
   # A PostgreSQL database for our application
-  - type: postgres
+  - type: psql
     name: inwit-tix-db
     plan: free # Can be upgraded later
     # Render will automatically set the DATABASE_URL environment variable
@@ -34,4 +34,5 @@ services:
       name: uploads-disk
       mountPath: /var/data/uploads
       sizeGB: 1
+
 
