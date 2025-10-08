@@ -12,10 +12,11 @@ services:
     env: docker
     plan: free
     healthCheckPath: /
-    # Run the database initialization command before starting the app
-    initCommand: "flask db-init"
+    # UPDATED: The database initialization is now part of the build command
+    buildCommand: |
+      pip install -r requirements.txt
+      flask db-init
     envVars:
-      # NEW: Explicitly tell Flask where to find the application object
       - key: FLASK_APP
         value: app:app
       - key: DATABASE_URL
