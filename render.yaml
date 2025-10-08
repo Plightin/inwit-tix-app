@@ -2,20 +2,16 @@
 
 databases:
   - name: inwit-tix-db
-    # REMOVED: The region key is removed to avoid conflicts with existing services.
-    plan: free
+    plan: starter # UPDATED: Upgraded from free to starter plan
 
 services:
   - name: inwit-tix-app
     type: web
-    # REMOVED: The region key is removed to avoid conflicts with existing services.
     env: docker
-    plan: free
+    plan: starter # UPDATED: Upgraded from free to starter plan
     healthCheckPath: /
-    # The database initialization is now part of the build command
-    buildCommand: |
-      pip install -r requirements.txt
-      flask db-init
+    # Use a pre-deploy command for database initialization
+    preDeployCommand: "flask db-init"
     envVars:
       - key: FLASK_APP
         value: app:app
