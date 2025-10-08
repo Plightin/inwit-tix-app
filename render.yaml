@@ -2,7 +2,7 @@
 
 databases:
   - name: inwit-tix-db
-    plan: starter_plus # UPDATED: Upgraded to a non-legacy paid plan
+    plan: standard # UPDATED: Changed to a valid, current paid plan
 
 services:
   - name: inwit-tix-app
