@@ -28,10 +28,6 @@ services:
         fromDatabase:
           name: inwit-tix-db
           property: connectionString
-      - key: UPLOAD_FOLDER
-        value: /var/data/uploads
-    disk:
-      name: uploads-disk
-      mountPath: /var/data/uploads
-      sizeGB: 1
+    # REMOVED: The 'disk' and 'UPLOAD_FOLDER' sections are not supported on the free plan.
+    # We will replace this with a cloud storage solution like AWS S3.
 
