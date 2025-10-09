@@ -4,6 +4,7 @@ Flask-Login
 Flask-Bcrypt
 qrcode
 Pillow
+WeasyPrint
 gunicorn
 psycopg2-binary
 python-dotenv
