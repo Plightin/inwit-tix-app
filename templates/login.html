@@ -4,14 +4,17 @@
     <h1>Login to Your Account</h1>
     <form method="post" class="form-card">
         <div class="form-group">
-            <label for="email">Email Address:</label>
-            <input type="email" id="email" name="email" required>
+            <label for="username">Username</label>
+            <input type="text" name="username" id="username" required>
         </div>
         <div class="form-group">
-            <label for="password">Password:</label>
-            <input type="password" id="password" name="password" required>
+            <label for="password">Password</label>
+            <input type="password" name="password" id="password" required>
         </div>
         <button type="submit" class="btn">Login</button>
     </form>
-    <p class="auth-link">Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.</p>
+    <p style="text-align: center; margin-top: 15px;">
+        Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.
+    </p>
 {% endblock %}
+
