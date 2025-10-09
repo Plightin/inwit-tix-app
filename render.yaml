@@ -1,31 +1,26 @@
-# A simplified blueprint for a basic deployment on Render's free plan
+# Blueprint for deploying Inwit Tix on Render
+
+# Databases are defined in their own top-level section
+databases:
+  - name: inwit-tix-db
+    plan: free
 
 services:
-  # The main Flask web application using Render's native Python environment
+  # The main Flask web application
   - type: web
     name: inwit-tix-app
-    env: python # Reverted to native Python environment
+    env: python
     plan: free
-    # The build command now only installs Python packages
-    buildCommand: "pip install -r requirements.txt"
-    # The start command remains the same
+    buildCommand: "./build.sh" # We will use a build script
     startCommand: "gunicorn app:app"
     healthCheckPath: /
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
-      - key: FLASK_APP
-        value: app:app
-      - key: SECRET_KEY
-        generateValue: true
       - key: DATABASE_URL
-        fromService:
-          type: psql
+        fromDatabase:
           name: inwit-tix-db
           property: connectionString
-
-  # A PostgreSQL database for our application
-  - type: psql
-    name: inwit-tix-db
-    plan: free
+      - key: SECRET_KEY
+        generateValue: true
 
