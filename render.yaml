@@ -1,26 +1,24 @@
-# Blueprint for deploying Inwit Tix on Render
+# Blueprint for deploying Inwit Tix on Render's native environment
 
-# Databases are defined in their own top-level section
-databases:
-  - name: inwit-tix-db
-    plan: free
-
+# Define the services for your application
 services:
   # The main Flask web application
   - type: web
     name: inwit-tix-app
+    # Use the native Python environment
     env: python
-    plan: free
-    buildCommand: "./build.sh" # We will use a build script
+    # Define the command to build the application
+    buildCommand: "./build.sh"
+    # Define the command to start the application
     startCommand: "gunicorn app:app"
-    healthCheckPath: /
+    # Define environment variables
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.5
       - key: DATABASE_URL
-        fromDatabase:
-          name: inwit-tix-db
-          property: connectionString
+        # This will be automatically provided by Render if you create a database
+        # For now, it will fall back to SQLite if no DB is attached.
+        value: "" # Leave empty for initial deployment
       - key: SECRET_KEY
         generateValue: true
 
