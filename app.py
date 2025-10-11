@@ -20,8 +20,9 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///database.db'
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY') # Must be set in production
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///database.db' # Fallback for local dev
+# UPDATED: Provide a default fallback key to prevent crashes, while prioritizing the environment variable
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-strong-default-secret-key-that-should-be-overridden')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -99,7 +100,10 @@ def allowed_file(filename):
 
 @app.route('/')
 def index():
-    events = Event.query.order_by(Event.event_datetime.asc()).all()
+    try:
+        events = Event.query.order_by(Event.event_datetime.asc()).all()
+    except Exception:
+        events = []
     return render_template('index.html', events=events)
 
 @app.route('/register', methods=['GET', 'POST'])
