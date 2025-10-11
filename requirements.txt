@@ -1,9 +1,11 @@
 Flask
 Flask-SQLAlchemy
-Flask-Login
+Flask--Login
 Flask-Bcrypt
 qrcode
 Pillow
 gunicorn
 psycopg2-binary
 python-dotenv
+WeasyPrint
+Flask-Mail
