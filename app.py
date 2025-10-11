@@ -22,7 +22,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///database.db' # Fallback for local dev
 # UPDATED: Provide a default fallback key to prevent crashes, while prioritizing the environment variable
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-strong-default-secret-key-that-should-be-overridden')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-very-strong-default-secret-key-for-safety')
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -120,9 +120,15 @@ def register():
             flash('All fields are required.', 'danger')
             return redirect(url_for('register'))
 
-        user = User.query.filter_by(username=username).first()
-        if user:
+        # UPDATED: Check for existing email as well
+        user_by_username = User.query.filter_by(username=username).first()
+        if user_by_username:
             flash('Username already exists.', 'danger')
+            return redirect(url_for('register'))
+        
+        user_by_email = User.query.filter_by(email=email).first()
+        if user_by_email:
+            flash('Email address already registered.', 'danger')
             return redirect(url_for('register'))
 
         new_user = User(username=username, email=email, password=password, phone_number=phone)
