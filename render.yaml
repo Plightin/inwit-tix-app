@@ -3,7 +3,7 @@
 # Define the database for your application
 databases:
   - name: inwit-tix-db
-    plan: free # A free PostgreSQL instance
+    plan: starter # UPDATED: Upgraded to a paid plan
 
 # Define the services for your application
 services:
@@ -12,9 +12,9 @@ services:
     name: inwit-tix-app
     # Use the native Python environment
     env: python
-    plan: free
-    # Define the command to build the application (just install dependencies)
-    buildCommand: "pip install -r requirements.txt"
+    plan: starter # UPDATED: Upgraded to a paid plan
+    # Define the command to build the application
+    buildCommand: "./build.sh"
     # Define the command to start the application
     startCommand: "gunicorn app:app"
     # Define environment variables
