@@ -12,14 +12,15 @@ services:
     name: inwit-tix-app
     # Use the native Python environment
     env: python
-    # Define the command to build the application
-    buildCommand: "./build.sh"
+    plan: free
+    # Define the command to build the application (just install dependencies)
+    buildCommand: "pip install -r requirements.txt"
     # Define the command to start the application
     startCommand: "gunicorn app:app"
     # Define environment variables
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.5
+        value: "3.11.5"
       - key: DATABASE_URL
         # Correctly link to the database created above
         fromDatabase:
