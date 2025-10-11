@@ -1,36 +1,30 @@
-# Blueprint for deploying Inwit Tix on Render using a Paid Plan and Docker
+# Blueprint for deploying Inwit Tix on Render's native environment
 
+# Define the database for your application
 databases:
   - name: inwit-tix-db
-    plan: 'starter' # Entry-level paid database plan
+    plan: free # A free PostgreSQL instance
 
+# Define the services for your application
 services:
-  - name: inwit-tix-app
-    type: web
-    env: docker
-    plan: 'starter' # Entry-level paid web service plan
-    healthCheckPath: /
-    # Use a pre-deploy command for database initialization on paid plans
-    preDeployCommand: "flask db-init"
+  # The main Flask web application
+  - type: web
+    name: inwit-tix-app
+    # Use the native Python environment
+    env: python
+    # Define the command to build the application
+    buildCommand: "./build.sh"
+    # Define the command to start the application
+    startCommand: "gunicorn app:app"
+    # Define environment variables
     envVars:
-      - key: FLASK_APP
-        value: app:app
+      - key: PYTHON_VERSION
+        value: 3.11.5
       - key: DATABASE_URL
+        # Correctly link to the database created above
         fromDatabase:
           name: inwit-tix-db
           property: connectionString
       - key: SECRET_KEY
+        # Tell Render to automatically generate a secure secret key
         generateValue: true
-      - key: UPLOAD_FOLDER
-        value: /var/data/uploads # This path is for the persistent disk
-      # Remember to add your Email Provider Environment Variables in the Render Dashboard
-      # - key: MAIL_SERVER
-      # - key: MAIL_PORT
-      # - key: MAIL_USERNAME
-      # - key: MAIL_PASSWORD
-      # - key: MAIL_USE_TLS
-      # - key: MAIL_DEFAULT_SENDER
-    disk:
-      name: uploads-disk
-      mountPath: /var/data/uploads
-      sizeGB: 1 # Smallest persistent disk size
