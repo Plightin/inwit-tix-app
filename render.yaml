@@ -28,3 +28,4 @@ services:
       - key: SECRET_KEY
         # Tell Render to automatically generate a secure secret key
         generateValue: true
+
