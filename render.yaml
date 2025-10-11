@@ -23,8 +23,14 @@ services:
         generateValue: true
       - key: UPLOAD_FOLDER
         value: /var/data/uploads # This path is for the persistent disk
+      # Remember to add your Email Provider Environment Variables in the Render Dashboard
+      # - key: MAIL_SERVER
+      # - key: MAIL_PORT
+      # - key: MAIL_USERNAME
+      # - key: MAIL_PASSWORD
+      # - key: MAIL_USE_TLS
+      # - key: MAIL_DEFAULT_SENDER
     disk:
       name: uploads-disk
       mountPath: /var/data/uploads
       sizeGB: 1 # Smallest persistent disk size
-
