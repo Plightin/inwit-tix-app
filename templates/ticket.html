@@ -7,6 +7,7 @@
         <p><strong>Ticket Holder:</strong> {{ ticket.owner.username }}</p>
         <p><strong>Event Date:</strong> {{ ticket.event.event_datetime.strftime('%A, %B %d, %Y at %I:%M %p') }}</p>
         <p><strong>Venue:</strong> {{ ticket.event.venue }}</p>
+        <p><strong>Ticket Type:</strong> {{ ticket.ticket_type }}</p>
         <p><strong>Ticket ID (UID):</strong> <code>{{ ticket.ticket_uid }}</code></p>
         <div class="qr-code">
             <img src="data:image/png;base64,{{ qr_code_img }}" alt="Ticket QR Code">
@@ -14,6 +15,12 @@
         <p class="instructions">
             Present this QR code at the event entrance for scanning. This is your proof of purchase.
         </p>
+
+        <!-- Actions for the user -->
+        <div class="ticket-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+            <a href="{{ url_for('download_ticket', ticket_id=ticket.id) }}" class="btn">Download PDF</a>
+            <a href="{{ url_for('resend_email_ticket', ticket_id=ticket.id) }}" class="btn" style="background-color: #0056b3;">Email Ticket</a>
+        </div>
     </div>
 {% endblock %}
 
