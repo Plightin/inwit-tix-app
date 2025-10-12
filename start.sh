@@ -5,7 +5,7 @@ set -o errexit
 # Run the database initialization command
 # This ensures the tables are created before the app starts
 echo "Running database initialization..."
-# UPDATED: Corrected the command from 'db-init' to 'init-db'
+# CORRECTED: Use the correct command name from app.py
 flask init-db
 echo "Database initialization complete."
 
