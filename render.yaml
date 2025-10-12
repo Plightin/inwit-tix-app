@@ -10,8 +10,8 @@ services:
     env: docker
     plan: 'starter' # Entry-level paid web service plan
     healthCheckPath: /
-    # UPDATED: Make the pre-deploy command more explicit
-    preDeployCommand: "FLASK_APP=app:app flask db-init"
+    # UPDATED: Use a more explicit command to run the Flask CLI
+    preDeployCommand: "python -m flask db-init"
     envVars:
       - key: FLASK_APP
         value: app:app
