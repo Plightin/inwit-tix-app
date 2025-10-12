@@ -13,7 +13,9 @@ services:
     # Use a pre-deploy command for database initialization on paid plans
     preDeployCommand: "flask db-init"
     envVars:
-      # FLASK_APP is already set in the Dockerfile.
+      # NEW: Explicitly set FLASK_APP to ensure all commands run in the correct context.
+      - key: FLASK_APP
+        value: app:app
       - key: DATABASE_URL
         fromDatabase:
           name: inwit-tix-db
