@@ -2,16 +2,15 @@
 
 databases:
   - name: inwit-tix-db
-    plan: 'starter' # Entry-level paid database plan
+    plan: 'starter'
 
 services:
   - name: inwit-tix-app
     type: web
     env: docker
-    plan: 'starter' # Entry-level paid web service plan
+    plan: 'starter'
     healthCheckPath: /
-    # UPDATED: Use a more explicit command to run the Flask CLI
-    preDeployCommand: "python -m flask db-init"
+    # The preDeployCommand has been removed. The Dockerfile's CMD and start.sh now handle initialization.
     envVars:
       - key: FLASK_APP
         value: app:app
@@ -22,9 +21,9 @@ services:
       - key: SECRET_KEY
         generateValue: true
       - key: UPLOAD_FOLDER
-        value: /var/data/uploads # This path is for the persistent disk
+        value: /var/data/uploads
     disk:
       name: uploads-disk
       mountPath: /var/data/uploads
-      sizeGB: 1 # Smallest persistent disk size
+      sizeGB: 1
 
