@@ -3,7 +3,7 @@
 # Define the database for your application
 databases:
   - name: inwit-tix-db
-    plan: starter # UPDATED: Upgraded to a paid plan
+    plan: starter # A paid PostgreSQL instance
 
 # Define the services for your application
 services:
@@ -12,7 +12,7 @@ services:
     name: inwit-tix-app
     # Use the native Python environment
     env: python
-    plan: starter # UPDATED: Upgraded to a paid plan
+    plan: starter # A paid web service instance
     # Define the command to build the application
     buildCommand: "./build.sh"
     # Define the command to start the application
