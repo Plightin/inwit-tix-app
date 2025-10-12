@@ -3,16 +3,13 @@ import uuid
 import base64
 from io import BytesIO
 from datetime import datetime
-from pathlib import Path
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file
+from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-from weasyprint import HTML, CSS
-from flask_mail import Mail, Message
 
 # --- App Configuration ---
 load_dotenv()
@@ -23,29 +20,20 @@ DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
-app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///database.db'
+app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL or 'sqlite:///database.db' # Fallback for local dev
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'a-strong-default-secret-key-that-should-be-overridden')
-app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
+app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-# Session Cookie Settings
+# Add robust session cookie settings for production
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Email Configuration (Set these in your Render Environment Variables)
-app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
-app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
-app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', '1', 't']
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@inwittix.com')
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
-mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
@@ -58,6 +46,7 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
+
     def __init__(self, username, email, password, phone_number=None):
         self.username = username
         self.email = email
@@ -85,13 +74,12 @@ class Ticket(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
 
-@app.cli.command("db-init")
-def db_init():
-    with app.app_context():
-        db.create_all()
-    print("Database initialized.")
+# --- Initialize Database ---
+# This block will run when the application starts, ensuring tables are created.
+with app.app_context():
+    db.create_all()
 
-# --- Helper Functions ---
+# --- Helper Functions & Routes ---
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -110,24 +98,6 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-def create_and_email_ticket(ticket):
-    try:
-        qr_code_img = generate_qr_code(ticket.ticket_uid)
-        basedir = os.path.abspath(os.path.dirname(__file__))
-        logo_path_obj = Path(basedir) / 'static' / 'logo.png'
-        logo_uri = logo_path_obj.as_uri()
-        html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_uri)
-        pdf_bytes = HTML(string=html_out).write_pdf()
-        msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
-        msg.body = f"Hello {ticket.owner.username},\n\nYour ticket for {ticket.event.name} is attached.\n\nThank you for using Inwit Tix!"
-        msg.attach(f"inwit-tix-ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
-        mail.send(msg)
-        flash('Your ticket has been sent to your email address.', 'success')
-    except Exception as e:
-        print(f"Error emailing ticket: {e}")
-        flash('There was an issue emailing your ticket. Please configure your email settings.', 'danger')
-
-# --- Web Routes ---
 @app.route('/')
 def index():
     try:
@@ -214,6 +184,9 @@ def create_event():
         filename = secure_filename(file.filename)
         unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
         
+        if not os.path.exists(app.config['UPLOAD_FOLDER']):
+            os.makedirs(app.config['UPLOAD_FOLDER'])
+        
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(file_path)
 
@@ -222,9 +195,9 @@ def create_event():
         venue = request.form.get('venue')
         event_datetime_str = request.form.get('event_datetime')
         event_datetime = datetime.strptime(event_datetime_str, '%Y-%m-%dT%H:%M')
-        price_ordinary = request.form.get('price_ordinary', type=float) or 0
-        price_vip = request.form.get('price_vip', type=float) or 0
-        price_vvip = request.form.get('price_vvip', type=float) or 0
+        price_ordinary = request.form.get('price_ordinary', type=float)
+        price_vip = request.form.get('price_vip', type=float)
+        price_vvip = request.form.get('price_vvip', type=float)
 
         new_event = Event(name=name, description=description, venue=venue, 
                           event_datetime=event_datetime, artwork=unique_filename,
@@ -252,12 +225,14 @@ def purchase_ticket(event_id):
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
 
-    new_ticket = Ticket(owner=current_user, event=event, ticket_type=ticket_type)
+    new_ticket = Ticket(
+        owner=current_user,
+        event=event,
+        ticket_type=ticket_type
+    )
     db.session.add(new_ticket)
     db.session.commit()
-    
-    create_and_email_ticket(new_ticket)
-    
+    flash('Ticket purchased successfully!', 'success')
     return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
 
 @app.route('/ticket/<int:ticket_id>')
@@ -268,37 +243,6 @@ def view_ticket(ticket_id):
         return "Unauthorized", 403
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     return render_template('ticket.html', ticket=ticket, qr_code_img=qr_code_img)
-
-@app.route('/ticket/download/<int:ticket_id>')
-@login_required
-def download_ticket(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.owner != current_user:
-        return "Unauthorized", 403
-
-    qr_code_img = generate_qr_code(ticket.ticket_uid)
-    basedir = os.path.abspath(os.path.dirname(__file__))
-    logo_path_obj = Path(basedir) / 'static' / 'logo.png'
-    logo_uri = logo_path_obj.as_uri()
-
-    html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_uri)
-    pdf = HTML(string=html_out).write_pdf()
-    
-    return send_file(
-        BytesIO(pdf),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f'inwit-tix-ticket-{ticket.id}.pdf'
-    )
-
-@app.route('/ticket/email/<int:ticket_id>')
-@login_required
-def resend_email_ticket(ticket_id):
-    ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.owner != current_user:
-        return "Unauthorized", 403
-    create_and_email_ticket(ticket)
-    return redirect(url_for('view_ticket', ticket_id=ticket.id))
 
 
 @app.route('/scan')
