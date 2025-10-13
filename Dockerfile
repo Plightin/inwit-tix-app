@@ -33,4 +33,3 @@ EXPOSE 10000
 
 # Use the startup script as the main command
 CMD ["./start.sh"]
-
