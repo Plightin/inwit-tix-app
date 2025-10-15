@@ -10,7 +10,7 @@ services:
     env: docker
     plan: 'starter'
     healthCheckPath: /
-    # The preDeployCommand has been removed. Initialization will be done manually.
+    # The preDeployCommand has been removed. The Dockerfile's CMD and start.sh now handle initialization.
     envVars:
       - key: FLASK_APP
         value: app:app
