@@ -10,9 +10,7 @@ services:
     env: docker
     plan: 'starter'
     healthCheckPath: /
-    # UPDATED: Use a pre-deploy command, which runs after the database is confirmed to be online.
-    # The command is now more explicit to work correctly.
-    preDeployCommand: "python -m flask init-db"
+    # The preDeployCommand has been removed. Initialization will be done manually.
     envVars:
       - key: FLASK_APP
         value: app:app
