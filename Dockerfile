@@ -4,8 +4,9 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies required by WeasyPrint
+# Install system dependencies, including dos2unix to fix line endings
 RUN apt-get update && apt-get install -y \
+    dos2unix \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \
@@ -26,6 +27,8 @@ ENV FLASK_APP="app:app"
 
 # Copy the startup script and make it executable
 COPY start.sh .
+# NEW: Convert the script to Unix line endings to prevent errors
+RUN dos2unix ./start.sh
 RUN chmod +x ./start.sh
 
 # Expose the port the app runs on
