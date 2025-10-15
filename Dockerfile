@@ -28,5 +28,4 @@ ENV FLASK_APP="app:app"
 EXPOSE 10000
 
 # The CMD now directly starts the Gunicorn server.
-# The database initialization is handled by the preDeployCommand in render.yaml
 CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:10000", "app:app"]
