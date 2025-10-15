@@ -9,5 +9,6 @@ echo "Database initialization complete."
 
 # Start the Gunicorn web server
 echo "Starting Gunicorn server..."
-gunicorn --workers 4 --bind 0.0.0.0:10000 --limit-request-field-size 0 app:app
+# UPDATED: Removed the '--limit-request-field-size 0' argument to ensure compatibility.
+gunicorn --workers 4 --bind 0.0.0.0:10000 app:app
 
