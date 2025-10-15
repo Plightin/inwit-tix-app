@@ -5,7 +5,6 @@ from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
-# UPDATED: Added 'send_from_directory' to the import list
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -343,4 +342,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-
