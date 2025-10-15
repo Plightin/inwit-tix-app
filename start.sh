@@ -2,10 +2,24 @@
 # Exit on error
 set -o errexit
 
-# Run the database initialization command
-# This ensures the tables are created before the app starts
-echo "Running database initialization..."
-flask init-db
+# A loop to wait for the database to be ready
+# It will try 5 times with a 5-second delay between attempts.
+n=0
+until [ "$n" -ge 5 ]
+do
+   echo "Running database initialization (Attempt $((n+1)))..."
+   flask init-db && break  # attempt to initialize and exit loop if successful
+   n=$((n+1))
+   echo "Database not ready, waiting 5 seconds..."
+   sleep 5
+done
+
+# Check if the loop finished because of success or timeout
+if [ "$n" -ge 5 ]; then
+    echo "Could not connect to the database after several attempts. Exiting."
+    exit 1
+fi
+
 echo "Database initialization complete."
 
 # Start the Gunicorn web server
