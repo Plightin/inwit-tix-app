@@ -4,8 +4,9 @@ FROM python:3.11-slim
 # Set the working directory in the container
 WORKDIR /app
 
-# Install system dependencies required by WeasyPrint
+# Install system dependencies, including dos2unix to fix line endings
 RUN apt-get update && apt-get install -y \
+    dos2unix \
     libpango-1.0-0 \
     libpangoft2-1.0-0 \
     libharfbuzz0b \
@@ -24,8 +25,13 @@ COPY . .
 # Set the FLASK_APP environment variable inside the container
 ENV FLASK_APP="app:app"
 
+# Copy the startup script, fix line endings, and make it executable
+COPY start.sh .
+RUN dos2unix ./start.sh
+RUN chmod +x ./start.sh
+
 # Expose the port the app runs on
 EXPOSE 10000
 
-# The CMD now directly starts the Gunicorn server.
-CMD ["gunicorn", "--workers", "4", "--bind", "0.0.0.0:10000", "app:app"]
+# Use the startup script as the main command
+CMD ["./start.sh"]
