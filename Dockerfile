@@ -25,9 +25,8 @@ COPY . .
 # Set the FLASK_APP environment variable inside the container
 ENV FLASK_APP="app:app"
 
-# Copy the startup script and make it executable
+# Copy the startup script, fix line endings, and make it executable
 COPY start.sh .
-# NEW: Convert the script to Unix line endings to prevent errors
 RUN dos2unix ./start.sh
 RUN chmod +x ./start.sh
 
