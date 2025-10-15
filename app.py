@@ -3,46 +3,59 @@ import uuid
 import base64
 from io import BytesIO
 from datetime import datetime
+from pathlib import Path
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
+from weasyprint import HTML, CSS
+from flask_mail import Mail, Message
+from werkzeug.middleware.proxy_fix import ProxyFix # NEW: Import ProxyFix
 
 # --- App Configuration ---
 load_dotenv()
 app = Flask(__name__)
 
-# --- Production-Only Database Configuration ---
-# Get the database URL from the environment variables provided by Render
-DATABASE_URL = os.environ.get('DATABASE_URL')
+# NEW: Apply ProxyFix to trust headers from Render's proxy
+# This is crucial for login sessions to work correctly in production.
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# IMPORTANT: Remove the fallback to SQLite. 
-# If DATABASE_URL is not set, the app will fail loudly, which is what we want.
+
+# Production configuration for Render
+DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-app.config['UPLOAD_FOLDER'] = 'static/uploads'
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-# Add robust session cookie settings for production
+# Session Cookie Settings
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
+# Email Configuration
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
+app.config['MAIL_USE_SSL'] = os.environ.get('MAIL_USE_SSL', 'false').lower() in ['true', '1', 't']
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@inwittix.com')
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
+mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 # --- Database Models ---
-# (Models are unchanged)
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
@@ -51,7 +64,6 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
-
     def __init__(self, username, email, password, phone_number=None):
         self.username = username
         self.email = email
@@ -79,15 +91,13 @@ class Ticket(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
 
-
-# Add a dedicated command to initialize the database
 @app.cli.command("init-db")
-def init_db_command():
-    """Creates the database tables."""
-    db.create_all()
-    print("Initialized the database.")
+def init_db():
+    with app.app_context():
+        db.create_all()
+    print("Database initialized.")
 
-# --- Helper Functions & Routes ---
+# --- Helper Functions ---
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -106,19 +116,82 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def create_and_email_ticket(ticket):
+    try:
+        qr_code_img = generate_qr_code(ticket.ticket_uid)
+        basedir = os.path.abspath(os.path.dirname(__file__))
+        logo_path_obj = Path(basedir) / 'static' / 'logo.png'
+        logo_uri = logo_path_obj.as_uri()
+        html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_uri)
+        pdf_bytes = HTML(string=html_out).write_pdf()
+        msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
+        msg.body = f"Hello {ticket.owner.username},\n\nYour ticket for {ticket.event.name} is attached.\n\nThank you for using Inwit Tix!"
+        msg.attach(f"inwit-tix-ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
+        mail.send(msg)
+        flash('Your ticket has been sent to your email address.', 'success')
+    except Exception as e:
+        print(f"Error emailing ticket: {e}")
+        flash('There was an issue emailing your ticket. Please configure your email settings.', 'danger')
+
+# --- Web Routes ---
 @app.route('/')
 def index():
-    events = Event.query.order_by(Event.event_datetime.asc()).all()
+    try:
+        events = Event.query.order_by(Event.event_datetime.asc()).all()
+    except Exception:
+        events = []
     return render_template('index.html', events=events)
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    # ... (rest of function is unchanged)
+    if current_user.is_authenticated:
+        return redirect(url_for('index'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        phone = request.form.get('phone_number')
+
+        if not all([username, email, password]):
+            flash('All fields are required.', 'danger')
+            return redirect(url_for('register'))
+
+        user_by_username = User.query.filter_by(username=username).first()
+        if user_by_username:
+            flash('Username already exists.', 'danger')
+            return redirect(url_for('register'))
+        
+        user_by_email = User.query.filter_by(email=email).first()
+        if user_by_email:
+            flash('Email address already registered.', 'danger')
+            return redirect(url_for('register'))
+
+        new_user = User(username=username, email=email, password=password, phone_number=phone)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Account created successfully! Please log in.', 'success')
+        return redirect(url_for('login'))
     return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    # ... (rest of function is unchanged)
+    if current_user.is_authenticated:
+        return redirect(url_for('profile'))
+    if request.method == 'POST':
+        username = request.form.get('username')
+        password = request.form.get('password')
+
+        if not username or not password:
+            flash('Both username and password are required.', 'danger')
+            return redirect(url_for('login'))
+
+        user = User.query.filter_by(username=username).first()
+        if user and bcrypt.check_password_hash(user.password_hash, password):
+            login_user(user, remember=True)
+            return redirect(url_for('profile'))
+        else:
+            flash('Login unsuccessful. Please check username and password.', 'danger')
+            return redirect(url_for('login'))
     return render_template('login.html')
 
 @app.route('/logout')
@@ -135,7 +208,39 @@ def profile():
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
-    # ... (rest of function is unchanged)
+    if request.method == 'POST':
+        if 'artwork' not in request.files:
+            flash('No file part', 'danger')
+            return redirect(request.url)
+        file = request.files['artwork']
+        if file.filename == '' or not allowed_file(file.filename):
+            flash('No selected file or file type not allowed', 'danger')
+            return redirect(request.url)
+
+        filename = secure_filename(file.filename)
+        unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
+        
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(file_path)
+
+        name = request.form.get('name')
+        description = request.form.get('description')
+        venue = request.form.get('venue')
+        event_datetime_str = request.form.get('event_datetime')
+        event_datetime = datetime.strptime(event_datetime_str, '%Y-%m-%dT%H:%M')
+        price_ordinary = request.form.get('price_ordinary', type=float) or 0
+        price_vip = request.form.get('price_vip', type=float) or 0
+        price_vvip = request.form.get('price_vvip', type=float) or 0
+
+        new_event = Event(name=name, description=description, venue=venue, 
+                          event_datetime=event_datetime, artwork=unique_filename,
+                          creator=current_user, price_ordinary=price_ordinary,
+                          price_vip=price_vip, price_vvip=price_vvip)
+        db.session.add(new_event)
+        db.session.commit()
+        flash('Event created successfully!', 'success')
+        return redirect(url_for('index'))
+
     return render_template('create_event.html')
 
 @app.route('/event/<int:event_id>')
@@ -146,7 +251,19 @@ def event_detail(event_id):
 @app.route('/purchase/<int:event_id>', methods=['POST'])
 @login_required
 def purchase_ticket(event_id):
-    # ... (rest of function is unchanged)
+    event = Event.query.get_or_404(event_id)
+    ticket_type = request.form.get('ticket_type')
+    
+    if not ticket_type:
+        flash('Please select a ticket type.', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+
+    new_ticket = Ticket(owner=current_user, event=event, ticket_type=ticket_type)
+    db.session.add(new_ticket)
+    db.session.commit()
+    
+    create_and_email_ticket(new_ticket)
+    
     return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
 
 @app.route('/ticket/<int:ticket_id>')
@@ -158,6 +275,38 @@ def view_ticket(ticket_id):
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     return render_template('ticket.html', ticket=ticket, qr_code_img=qr_code_img)
 
+@app.route('/ticket/download/<int:ticket_id>')
+@login_required
+def download_ticket(ticket_id):
+    ticket = Ticket.query.get_or_404(ticket_id)
+    if ticket.owner != current_user:
+        return "Unauthorized", 403
+
+    qr_code_img = generate_qr_code(ticket.ticket_uid)
+    basedir = os.path.abspath(os.path.dirname(__file__))
+    logo_path_obj = Path(basedir) / 'static' / 'logo.png'
+    logo_uri = logo_path_obj.as_uri()
+
+    html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_uri)
+    pdf = HTML(string=html_out).write_pdf()
+    
+    return send_file(
+        BytesIO(pdf),
+        mimetype='application/pdf',
+        as_attachment=True,
+        download_name=f'inwit-tix-ticket-{ticket.id}.pdf'
+    )
+
+@app.route('/ticket/email/<int:ticket_id>')
+@login_required
+def resend_email_ticket(ticket_id):
+    ticket = Ticket.query.get_or_404(ticket_id)
+    if ticket.owner != current_user:
+        return "Unauthorized", 403
+    create_and_email_ticket(ticket)
+    return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+
 @app.route('/scan')
 def scan():
     return render_template('scan.html')
@@ -165,7 +314,16 @@ def scan():
 @app.route('/verify_ticket', methods=['POST'])
 @login_required
 def verify_ticket():
-    # ... (rest of function is unchanged)
+    ticket_uid = request.form.get('ticket_uid')
+    ticket = Ticket.query.filter_by(ticket_uid=ticket_uid).first()
+    if not ticket:
+        flash(f"INVALID TICKET: UID {ticket_uid} not found.", 'danger')
+    elif ticket.is_scanned:
+        flash(f"ALREADY SCANNED: Ticket for {ticket.owner.username} was already used.", 'warning')
+    else:
+        ticket.is_scanned = True
+        db.session.commit()
+        flash(f"SUCCESS: Welcome, {ticket.owner.username}! Ticket for '{ticket.event.name}' is valid.", 'success')
     return redirect(url_for('scan'))
 
 if __name__ == '__main__':
