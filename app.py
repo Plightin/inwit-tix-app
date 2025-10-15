@@ -5,6 +5,7 @@ from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
+# UPDATED: Added 'send_from_directory' to the import list
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
@@ -34,7 +35,6 @@ app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
 
-# Email Configuration (Set these in your Render Environment Variables)
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
