@@ -10,7 +10,8 @@ services:
     env: docker
     plan: 'starter'
     healthCheckPath: /
-    # The preDeployCommand has been removed. The Dockerfile's CMD and start.sh now handle initialization.
+    # UPDATED: Use a pre-deploy command, which runs after the database is confirmed to be online.
+    preDeployCommand: "flask init-db"
     envVars:
       - key: FLASK_APP
         value: app:app
@@ -26,4 +27,3 @@ services:
       name: uploads-disk
       mountPath: /var/data/uploads
       sizeGB: 1
-
