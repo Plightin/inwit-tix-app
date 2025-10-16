@@ -1,49 +1,54 @@
 {% extends 'layout.html' %}
 {% block title %}My Profile{% endblock %}
+
 {% block content %}
-    <h1>Hello, {{ current_user.username }}!</h1>
-    <hr>
-    
-    <h2>My Tickets</h2>
-    {% if tickets %}
-        <div class="event-grid">
-            {% for ticket in tickets %}
-                <div class="card">
-                    <h3>{{ ticket.event.name }}</h3>
-                    <div class="event-meta">
-                        <p><strong>Date:</strong> {{ ticket.event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</p>
-                        <p><strong>Venue:</strong> {{ ticket.event.venue }}</p>
-                    </div>
-                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a>
-                </div>
-            {% endfor %}
-        </div>
-    {% else %}
-        <p>You haven't purchased any tickets yet.</p>
-    {% endif %}
+<div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="mb-8">
+        <h1 class="text-3xl font-extrabold text-gray-800">Hello, {{ current_user.username }}!</h1>
+        <p class="text-gray-500">Welcome to your profile page.</p>
+    </div>
 
-    <hr style="margin-top: 40px;">
+    <!-- My Tickets -->
+    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">My Tickets</h2>
+        {% if tickets %}
+            <ul class="space-y-4">
+                {% for ticket in tickets %}
+                    <li class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                            <p class="font-bold text-gray-900">{{ ticket.event.name }}</p>
+                            <p class="text-sm text-gray-500">{{ ticket.ticket_type }} Ticket</p>
+                        </div>
+                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-gray-500">You haven't purchased any tickets yet.</p>
+        {% endif %}
+    </div>
 
-    <h2>My Events</h2>
-    <p>These are the events you have created.</p>
-    {% if events %}
-        <div class="event-grid">
-            {% for event in events %}
-                 <div class="card">
-                    <img src="{{ url_for('static', filename='uploads/' + event.artwork) }}" alt="{{ event.name }}" class="event-image">
-                    <h3>{{ event.name }}</h3>
-                    <div class="event-meta">
-                         <p><strong>Date:</strong> {{ event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</p>
-                         <p><strong>Venue:</strong> {{ event.venue }}</p>
-                    </div>
-                    <p>{{ event.description }}</p>
-                    <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn">View Event Page</a>
-                </div>
-            {% endfor %}
-        </div>
-    {% else %}
-        <p>You haven't created any events yet.</p>
-    {% endif %}
-
+    <!-- My Events -->
+    <div class="bg-white p-6 rounded-xl shadow-lg">
+        <h2 class="text-xl font-bold text-gray-800 mb-4">My Events</h2>
+        <p class="text-sm text-gray-500 mb-4">These are the events you have created.</p>
+        {% if events %}
+            <ul class="space-y-4">
+                {% for event in events %}
+                    <li class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                        <div>
+                            <p class="font-bold text-gray-900">{{ event.name }}</p>
+                            <p class="text-sm text-gray-500">{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</p>
+                        </div>
+                        <!-- Add a link to the dashboard -->
+                        <a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn" style="background-color: #1a73e8;">View Dashboard</a>
+                    </li>
+                {% endfor %}
+            </ul>
+        {% else %}
+            <p class="text-gray-500">You haven't created any events yet.</p>
+            <a href="{{ url_for('create_event') }}" class="btn mt-4">Create Your First Event</a>
+        {% endif %}
+    </div>
+</div>
 {% endblock %}
-
