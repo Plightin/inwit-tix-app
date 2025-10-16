@@ -23,14 +23,28 @@
             background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23eaf2ff' fill-opacity='0.4'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
         .ticket-header {
-            text-align: center;
-            border-bottom: 2px dashed #002366;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
             padding-bottom: 15px;
+            border-bottom: 2px dashed #002366;
             margin-bottom: 20px;
         }
         .ticket-logo {
-            max-height: 45px;
+            max-height: 35px;
             width: auto;
+        }
+        .logo-container {
+            text-align: right;
+        }
+        .motto {
+            font-size: 0.7em;
+            color: #555;
+            margin: 5px 0 0 0; /* Updated margin to be on top */
+            font-style: italic;
+        }
+        .ticket-type-container {
+            text-align: left;
         }
         .ticket-type {
             background-color: #002366;
@@ -40,7 +54,6 @@
             font-size: 1.2em;
             font-weight: bold;
             display: inline-block;
-            margin-top: 15px;
             text-transform: uppercase;
         }
         .details-grid {
@@ -85,8 +98,14 @@
 <body>
     <div class="ticket-container">
         <div class="ticket-header">
-            {% if logo_path %}<img src="{{ logo_path }}" alt="Inwit Tix Logo" class="ticket-logo">{% endif %}
-            <div class="ticket-type">{{ ticket.ticket_type }} Ticket</div>
+            <div class="ticket-type-container">
+                <div class="ticket-type">{{ ticket.ticket_type }} Ticket</div>
+            </div>
+            <div class="logo-container">
+                <!-- UPDATED: Swapped the order of the logo and motto -->
+                {% if logo_path %}<img src="{{ logo_path }}" alt="Inwit Tix Logo" class="ticket-logo">{% endif %}
+                <p class="motto">Your Digital Gateway to Events</p>
+            </div>
         </div>
 
         <div class="details-grid">
