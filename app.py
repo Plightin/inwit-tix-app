@@ -5,7 +5,7 @@ from io import BytesIO
 from datetime import datetime
 from pathlib import Path
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -92,8 +92,7 @@ def init_db():
         db.create_all()
     print("Database initialized.")
 
-# --- Helper Functions & Routes ---
-# (The selection is now complete)
+# --- Helper Functions ---
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
@@ -319,19 +318,45 @@ def resend_email_ticket(ticket_id):
     create_and_email_ticket(ticket)
     return redirect(url_for('view_ticket', ticket_id=ticket.id))
 
-# NEW: Add the dashboard route
+# UPDATED: Route for the camera scanner app
+@app.route('/scanner')
+@login_required
+def scanner():
+    return render_template('scanner.html')
+
+# UPDATED: The verify_ticket route now handles JSON requests from the scanner
+@app.route('/verify_ticket', methods=['POST'])
+@login_required
+def verify_ticket():
+    data = request.get_json()
+    if not data or 'ticket_uid' not in data:
+        return jsonify({'status': 'danger', 'message': 'Invalid request.'}), 400
+
+    ticket_uid = data['ticket_uid']
+    ticket = Ticket.query.filter_by(ticket_uid=ticket_uid).first()
+    
+    if not ticket:
+        return jsonify({'status': 'danger', 'message': f'INVALID: Ticket not found.'})
+    
+    # Security check: Ensure the scanner is the event creator
+    if ticket.event.creator != current_user:
+        return jsonify({'status': 'danger', 'message': 'UNAUTHORIZED: You did not create this event.'})
+        
+    if ticket.is_scanned:
+        return jsonify({'status': 'warning', 'message': f'ALREADY SCANNED: Ticket for {ticket.owner.username} was used.'})
+    else:
+        ticket.is_scanned = True
+        db.session.commit()
+        return jsonify({'status': 'success', 'message': f'SUCCESS: Welcome, {ticket.owner.username}! ({ticket.ticket_type})'})
+
 @app.route('/dashboard/<int:event_id>')
 @login_required
 def event_dashboard(event_id):
     event = Event.query.get_or_404(event_id)
-    # Security: Ensure only the event creator can access the dashboard
     if event.creator != current_user:
-        abort(403) # Forbidden
+        abort(403)
 
-    # Get all tickets for this event
     tickets = event.tickets
-
-    # Calculate insights
     total_tickets_sold = len(tickets)
     total_revenue = sum(ticket.price_paid for ticket in tickets)
     
@@ -349,26 +374,6 @@ def event_dashboard(event_id):
     return render_template('dashboard.html', event=event, total_tickets_sold=total_tickets_sold,
                            total_revenue=total_revenue, sales_by_type=sales_by_type, tickets=tickets)
 
-
-@app.route('/scan')
-@login_required
-def scan():
-    return render_template('scan.html')
-
-@app.route('/verify_ticket', methods=['POST'])
-@login_required
-def verify_ticket():
-    ticket_uid = request.form.get('ticket_uid')
-    ticket = Ticket.query.filter_by(ticket_uid=ticket_uid).first()
-    if not ticket:
-        flash(f"INVALID TICKET: UID {ticket_uid} not found.", 'danger')
-    elif ticket.is_scanned:
-        flash(f"ALREADY SCANNED: Ticket for {ticket.owner.username} was already used.", 'warning')
-    else:
-        ticket.is_scanned = True
-        db.session.commit()
-        flash(f"SUCCESS: Welcome, {ticket.owner.username}! Ticket for '{ticket.event.name}' is valid.", 'success')
-    return redirect(url_for('scan'))
 
 if __name__ == '__main__':
     with app.app_context():
