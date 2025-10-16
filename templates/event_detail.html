@@ -3,8 +3,8 @@
 {% block content %}
     <div class="event-detail-card bg-white rounded-2xl shadow-xl p-6 md:p-8">
         <div class="detail-image-container mb-6">
-            <!-- UPDATED: Use the new 'uploaded_file' route for artwork -->
-            <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="{{ event.name }}" class="detail-image">
+            <!-- Use the new 'uploaded_file' route to display artwork from the persistent disk -->
+            <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="Artwork for {{ event.name }}" class="detail-image">
         </div>
         <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2">{{ event.name }}</h1>
         <div class="event-meta text-gray-500 mb-4">
@@ -22,7 +22,7 @@
             <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post">
                 <div class="space-y-4 mb-6">
                     <!-- Ticket Options -->
-                    {% if event.price_ordinary is not none %}
+                    {% if event.price_ordinary is not none and event.price_ordinary >= 0 %}
                     <label class="ticket-option-label">
                         <input type="radio" name="ticket_type" value="Ordinary" class="ticket-option-radio" required>
                         <span class="ticket-option-content">
@@ -32,7 +32,7 @@
                     </label>
                     {% endif %}
 
-                    {% if event.price_vip is not none %}
+                    {% if event.price_vip is not none and event.price_vip > 0 %}
                     <label class="ticket-option-label">
                         <input type="radio" name="ticket_type" value="VIP" class="ticket-option-radio">
                         <span class="ticket-option-content">
@@ -42,7 +42,7 @@
                     </label>
                     {% endif %}
 
-                    {% if event.price_vvip is not none %}
+                    {% if event.price_vvip is not none and event.price_vvip > 0 %}
                     <label class="ticket-option-label">
                         <input type="radio" name="ticket_type" value="VVIP" class="ticket-option-radio">
                         <span class="ticket-option-content">
