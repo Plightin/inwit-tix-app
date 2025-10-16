@@ -1,66 +1,64 @@
 {% extends 'layout.html' %}
 {% block title %}{{ event.name }}{% endblock %}
 {% block content %}
-    <div class="detail-image-container">
-        <img src="{{ url_for('static', filename='uploads/' + event.artwork) }}" alt="{{ event.name }}">
-    </div>
-
-    <h1>{{ event.name }}</h1>
-    <p class="event-meta">
-        Created by: {{ event.creator.username }}
-    </p>
-    <p>{{ event.description }}</p>
-
-    <div class="event-meta">
-        <strong>Date & Time:</strong> {{ event.event_datetime.strftime('%A, %B %d, %Y at %I:%M %p') }} <br>
-        <strong>Venue:</strong> {{ event.venue }}
-        <a href="https://www.google.com/maps/search/?api=1&query={{ event.venue|urlencode }}" target="_blank" class="map-link">View on Google Maps</a>
-    </div>
-
-    <hr>
-    
-    <h2>Choose Your Ticket</h2>
-
-    {% if current_user.is_authenticated %}
-        <div class="ticket-options">
-            {% if event.price_ordinary is not none %}
-            <div class="ticket-option-card">
-                <h3>Ordinary Ticket</h3>
-                <p class="price">K{{ "%.2f"|format(event.price_ordinary) }}</p>
-                <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post">
-                    <input type="hidden" name="ticket_type" value="Ordinary">
-                    <button type="submit" class="btn">Buy Ordinary Ticket</button>
-                </form>
-            </div>
-            {% endif %}
-
-            {% if event.price_vip is not none %}
-            <div class="ticket-option-card">
-                <h3>VIP Ticket</h3>
-                <p class="price">K{{ "%.2f"|format(event.price_vip) }}</p>
-                <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post">
-                    <input type="hidden" name="ticket_type" value="VIP">
-                    <button type="submit" class="btn">Buy VIP Ticket</button>
-                </form>
-            </div>
-            {% endif %}
-
-            {% if event.price_vvip is not none %}
-            <div class="ticket-option-card">
-                <h3>VVIP Ticket</h3>
-                <p class="price">K{{ "%.2f"|format(event.price_vvip) }}</p>
-                <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post">
-                    <input type="hidden" name="ticket_type" value="VVIP">
-                    <button type="submit" class="btn">Buy VVIP Ticket</button>
-                </form>
-            </div>
-            {% endif %}
+    <div class="event-detail-card bg-white rounded-2xl shadow-xl p-6 md:p-8">
+        <div class="detail-image-container mb-6">
+            <!-- UPDATED: Use the new 'uploaded_file' route for artwork -->
+            <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="{{ event.name }}" class="detail-image">
         </div>
-    {% else %}
-        <div class="alert alert-info">
-            You must be <a href="{{ url_for('login') }}">logged in</a> to purchase a ticket.
+        <h1 class="text-3xl md:text-4xl font-extrabold text-gray-800 mb-2">{{ event.name }}</h1>
+        <div class="event-meta text-gray-500 mb-4">
+            <span><strong>Date:</strong> {{ event.event_datetime.strftime('%A, %d %B %Y') }}</span> | 
+            <span><strong>Time:</strong> {{ event.event_datetime.strftime('%I:%M %p') }}</span> | 
+            <span><strong>Venue:</strong> {{ event.venue }}</span>
         </div>
-    {% endif %}
+        <p class="text-gray-700 leading-relaxed mb-6">{{ event.description }}</p>
+        
+        <hr class="my-6 border-gray-200">
+        
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">Select Your Ticket</h2>
 
+        {% if current_user.is_authenticated %}
+            <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post">
+                <div class="space-y-4 mb-6">
+                    <!-- Ticket Options -->
+                    {% if event.price_ordinary is not none %}
+                    <label class="ticket-option-label">
+                        <input type="radio" name="ticket_type" value="Ordinary" class="ticket-option-radio" required>
+                        <span class="ticket-option-content">
+                            <span class="font-bold">Ordinary</span>
+                            <span>K{{ "%.2f"|format(event.price_ordinary) }}</span>
+                        </span>
+                    </label>
+                    {% endif %}
+
+                    {% if event.price_vip is not none %}
+                    <label class="ticket-option-label">
+                        <input type="radio" name="ticket_type" value="VIP" class="ticket-option-radio">
+                        <span class="ticket-option-content">
+                            <span class="font-bold">VIP</span>
+                            <span>K{{ "%.2f"|format(event.price_vip) }}</span>
+                        </span>
+                    </label>
+                    {% endif %}
+
+                    {% if event.price_vvip is not none %}
+                    <label class="ticket-option-label">
+                        <input type="radio" name="ticket_type" value="VVIP" class="ticket-option-radio">
+                        <span class="ticket-option-content">
+                            <span class="font-bold">VVIP</span>
+                            <span>K{{ "%.2f"|format(event.price_vvip) }}</span>
+                        </span>
+                    </label>
+                    {% endif %}
+                </div>
+                <button type="submit" class="btn w-full">Buy Ticket</button>
+            </form>
+        {% else %}
+            <div class="text-center p-4 bg-gray-100 rounded-lg">
+                <p class="text-gray-700">You must be logged in to purchase a ticket.</p>
+                <a href="{{ url_for('login', next=request.url) }}" class="btn mt-4">Login to Continue</a>
+            </div>
+        {% endif %}
+    </div>
 {% endblock %}
-
