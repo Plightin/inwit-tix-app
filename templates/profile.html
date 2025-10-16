@@ -3,51 +3,73 @@
 
 {% block content %}
 <div class="container mx-auto px-4 sm:px-6 lg:px-8 py-8">
-    <div class="mb-8">
-        <h1 class="text-3xl font-extrabold text-gray-800">Hello, {{ current_user.username }}!</h1>
-        <p class="text-gray-500">Welcome to your profile page.</p>
+    <div class="mb-10">
+        <h1 class="text-4xl font-extrabold text-gray-800">Hello, {{ current_user.username }}!</h1>
+        <p class="text-lg text-gray-500 mt-1">Welcome to your personal dashboard.</p>
     </div>
 
     <!-- My Tickets -->
-    <div class="bg-white p-6 rounded-xl shadow-lg mb-8">
-        <h2 class="text-xl font-bold text-gray-800 mb-4">My Tickets</h2>
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg mb-10">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">My Purchased Tickets</h2>
         {% if tickets %}
-            <ul class="space-y-4">
-                {% for ticket in tickets %}
-                    <li class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <p class="font-bold text-gray-900">{{ ticket.event.name }}</p>
-                            <p class="text-sm text-gray-500">{{ ticket.ticket_type }} Ticket</p>
-                        </div>
-                        <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a>
-                    </li>
-                {% endfor %}
-            </ul>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Ticket Type</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for ticket in tickets %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ ticket.event.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ ticket.ticket_type }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn-primary">View Ticket</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
-            <p class="text-gray-500">You haven't purchased any tickets yet.</p>
+            <p class="text-center text-gray-500 py-8">You haven't purchased any tickets yet.</p>
         {% endif %}
     </div>
 
     <!-- My Events -->
-    <div class="bg-white p-6 rounded-xl shadow-lg">
-        <h2 class="text-xl font-bold text-gray-800 mb-4">My Events</h2>
-        <p class="text-sm text-gray-500 mb-4">These are the events you have created.</p>
+    <div class="bg-white p-6 md:p-8 rounded-2xl shadow-lg">
+        <h2 class="text-2xl font-bold text-gray-800 mb-6">My Created Events</h2>
         {% if events %}
-            <ul class="space-y-4">
-                {% for event in events %}
-                    <li class="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                        <div>
-                            <p class="font-bold text-gray-900">{{ event.name }}</p>
-                            <p class="text-sm text-gray-500">{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</p>
-                        </div>
-                        <!-- Add a link to the dashboard -->
-                        <a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn" style="background-color: #1a73e8;">View Dashboard</a>
-                    </li>
-                {% endfor %}
-            </ul>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Event Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Venue</th>
+                            <th scope="col" class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        {% for event in events %}
+                            <tr>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{{ event.name }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                                    <a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn-secondary">View Dashboard</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
         {% else %}
-            <p class="text-gray-500">You haven't created any events yet.</p>
-            <a href="{{ url_for('create_event') }}" class="btn mt-4">Create Your First Event</a>
+            <div class="text-center py-8">
+                <p class="text-gray-500">You haven't created any events yet.</p>
+                <a href="{{ url_for('create_event') }}" class="btn-primary mt-4">Create Your First Event</a>
+            </div>
         {% endif %}
     </div>
 </div>
