@@ -1,28 +1,36 @@
 {% extends 'layout.html' %}
 {% block title %}Upcoming Events{% endblock %}
 {% block content %}
-    <h1 class="text-4xl font-extrabold text-gray-800 mb-8 text-center">Upcoming Events</h1>
+    <h1 style="font-size: 2.5rem; font-weight: 800; color: #1f2937; margin-bottom: 2rem; text-align: center;">Upcoming Events</h1>
     <div class="event-grid">
         {% for event in events %}
             <div class="card">
                 <div class="event-image-container">
-                    <!-- Use the new 'uploaded_file' route to display artwork from the persistent disk -->
                     <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="Artwork for {{ event.name }}" class="event-image">
                 </div>
-                <div class="p-4 flex flex-col flex-grow">
-                    <h2 class="text-xl font-bold text-gray-800 truncate">{{ event.name }}</h2>
-                    <div class="event-meta my-2">
+                <div class="card-content">
+                    <h2 class="card-title">{{ event.name }}</h2>
+                    <div class="event-meta">
                         <span>{{ event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</span> | <span>{{ event.venue }}</span>
                     </div>
-                    <p class="text-gray-600 text-sm flex-grow">{{ event.description }}</p>
+                    <p class="card-description">{{ event.description }}</p>
                     
                     {% if event.price_ordinary > 0 %}
-                    <p class="price mt-4">From K{{ "%.2f"|format(event.price_ordinary) }}</p>
+                    <p class="price">From K{{ "%.2f"|format(event.price_ordinary) }}</p>
                     {% else %}
-                    <p class="price mt-4">Free Event</p>
+                    <p class="price">Free Event</p>
                     {% endif %}
 
-                    <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn mt-4 w-full">View Details & Buy Ticket</a>
+                    <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn" style="width: 100%; margin-top: 1rem;">View Details & Buy Ticket</a>
+
+                    <div class="share-container">
+                        <span class="share-label">Share:</span>
+                        <div class="share-buttons">
+                            <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn facebook">f</a>
+                            <a href="https://wa.me/?text=Check out this event: {{ event.name }} at {{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn whatsapp">w</a>
+                            <button class="share-btn copy-link" onclick="copyLink('{{ request.url_root }}event/{{ event.id }}')">copy</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         {% else %}
@@ -34,4 +42,17 @@
             </div>
         {% endfor %}
     </div>
+
+<script>
+function copyLink(text) {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+    alert('Event link copied to clipboard!');
+}
+</script>
+
 {% endblock %}
