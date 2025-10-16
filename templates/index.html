@@ -6,7 +6,8 @@
         {% for event in events %}
             <div class="card">
                 <div class="event-image-container">
-                    <img src="{{ url_for('static', filename='uploads/' + event.artwork) }}" alt="{{ event.name }}" class="event-image">
+                    <!-- UPDATED: Use the new 'uploaded_file' route for artwork -->
+                    <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="{{ event.name }}" class="event-image">
                 </div>
                 <h2>{{ event.name }}</h2>
                 <div class="event-meta">
@@ -14,7 +15,6 @@
                 </div>
                 <p>{{ event.description }}</p>
                 
-                <!-- UPDATED: Display the starting price -->
                 {% if event.price_ordinary %}
                 <p class="price">Price from K{{ "%.2f"|format(event.price_ordinary) }}</p>
                 {% else %}
@@ -40,18 +40,14 @@
 
 <script>
 function copyLink(text) {
-    // A simple function to copy the event link to the clipboard
-    const input = document.createElement('input');
-    input.style.position = 'fixed';
-    input.style.opacity = 0;
-    input.value = text;
-    document.body.appendChild(input);
-    input.select();
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    document.body.appendChild(textarea);
+    textarea.select();
     document.execCommand('copy');
-    document.body.removeChild(input);
+    document.body.removeChild(textarea);
     alert('Event link copied to clipboard!');
 }
 </script>
 
 {% endblock %}
-
