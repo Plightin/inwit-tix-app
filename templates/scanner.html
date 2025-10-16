@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inwit Tix Scanner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        #video {
+            width: 100%;
+            height: auto;
+            border-radius: 1rem;
+            transform: scaleX(-1); /* Mirror view */
+        }
+        #scan-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 70%;
+            height: 40%;
+            transform: translate(-50%, -50%);
+            border: 4px solid rgba(255, 255, 255, 0.5);
+            border-radius: 1rem;
+            box-shadow: 0 0 0 4000px rgba(0,0,0,0.3);
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4">
+
+    <div class="w-full max-w-md mx-auto text-center">
+        <header class="mb-4">
+            <div class="flex items-center justify-center gap-4">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo" class="h-10">
+            </div>
+            <h1 class="text-2xl font-bold mt-2">Ticket Scanner</h1>
+        </header>
+
+        <main id="scanner-container" class="bg-black rounded-2xl overflow-hidden shadow-2xl relative w-full aspect-square">
+            <video id="video" playsinline></video>
+            <div id="scan-box"></div>
+            <canvas id="canvas" class="hidden"></canvas>
+        </main>
+        
+        <div id="result-container" class="mt-4 p-4 rounded-lg text-center font-bold text-lg">
+            <p id="result-message">Align QR code within the box</p>
+        </div>
+
+        <div class="mt-4 w-full">
+            <p class="text-sm text-gray-400 mb-2">Camera not working? Enter UID manually:</p>
+            <form id="manual-form" class="flex gap-2">
+                <input type="text" id="manual-uid" placeholder="Enter Ticket UID" class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button type="submit" class="bg-blue-600 font-bold px-4 py-2 rounded-lg hover:bg-blue-700 transition">Verify</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('video');
+        const canvasElement = document.getElementById('canvas');
+        const canvas = canvasElement.getContext('2d');
+        const resultContainer = document.getElementById('result-container');
+        const resultMessage = document.getElementById('result-message');
+        const manualForm = document.getElementById('manual-form');
+        const manualUidInput = document.getElementById('manual-uid');
+
+        let lastScannedCode = null;
+        let lastScannedTime = 0;
+        const scanCooldown = 3000; // 3 seconds
+
+        // --- Sound Effects ---
+        const synth = new Tone.Synth().toDestination();
+        function playSound(status) {
+            if (status === 'success') {
+                synth.triggerAttackRelease("C5", "8n", Tone.now());
+                synth.triggerAttackRelease("G5", "8n", Tone.now() + 0.2);
+            } else {
+                synth.triggerAttackRelease("G2", "8n", Tone.now());
+            }
+        }
+
+        // --- Main Scanner Logic ---
+        function tick() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvasElement.height = video.videoHeight;
+                canvasElement.width = video.videoWidth;
+                canvas.drawImage(video, 0, 0, canvasElement.width, canvasElement.height);
+                const imageData = canvas.getImageData(0, 0, canvasElement.width, canvasElement.height);
+                const code = jsQR(imageData.data, imageData.width, imageData.height, {
+                    inversionAttempts: "dontInvert",
+                });
+
+                const now = Date.now();
+                if (code && (code.data !== lastScannedCode || now - lastScannedTime > scanCooldown)) {
+                    lastScannedCode = code.data;
+                    lastScannedTime = now;
+                    verifyCode(code.data);
+                }
+            }
+            requestAnimationFrame(tick);
+        }
+
+        async function verifyCode(uid) {
+            try {
+                const response = await fetch("{{ url_for('verify_ticket') }}", {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticket_uid: uid }),
+                });
+                const result = await response.json();
+                updateUI(result.status, result.message);
+                playSound(result.status);
+            } catch (error) {
+                updateUI('danger', 'Error connecting to server.');
+                playSound('danger');
+            }
+        }
+        
+        function updateUI(status, message) {
+            resultMessage.textContent = message;
+            resultContainer.className = 'mt-4 p-4 rounded-lg text-center font-bold text-lg'; // Reset
+            if (status === 'success') {
+                resultContainer.classList.add('bg-green-500', 'text-white');
+            } else if (status === 'warning') {
+                resultContainer.classList.add('bg-yellow-500', 'text-black');
+            } else {
+                resultContainer.classList.add('bg-red-500', 'text-white');
+            }
+        }
+        
+        // --- Manual Form Handling ---
+        manualForm.addEventListener('submit', function(event) {
+            event.preventDefault();
+            const uid = manualUidInput.value.trim();
+            if (uid) {
+                verifyCode(uid);
+                manualUidInput.value = '';
+            }
+        });
+
+        // --- Start Camera ---
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then(function(stream) {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true); // required to tell iOS safari we don't want fullscreen
+                video.play();
+                requestAnimationFrame(tick);
+            })
+            .catch(function(err) {
+                console.error("Camera Error:", err);
+                updateUI('danger', 'Could not access camera.');
+            });
+    </script>
+</body>
+</html>
