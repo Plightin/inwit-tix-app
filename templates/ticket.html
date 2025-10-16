@@ -1,26 +1,25 @@
 {% extends 'layout.html' %}
 {% block title %}Your Ticket{% endblock %}
 {% block content %}
-    <h1>Your Digital Ticket</h1>
-    <div class="ticket-card">
+    <h1 style="font-size: 2.5rem; font-weight: 800; color: #1f2937; margin-bottom: 2rem; text-align: center;">Your Digital Ticket</h1>
+    <div class="form-card" style="max-width: 500px; margin: auto; text-align: center;">
         <h2>{{ ticket.event.name }}</h2>
         <p><strong>Ticket Holder:</strong> {{ ticket.owner.username }}</p>
         <p><strong>Event Date:</strong> {{ ticket.event.event_datetime.strftime('%A, %B %d, %Y at %I:%M %p') }}</p>
         <p><strong>Venue:</strong> {{ ticket.event.venue }}</p>
         <p><strong>Ticket Type:</strong> {{ ticket.ticket_type }}</p>
         <p><strong>Ticket ID (UID):</strong> <code>{{ ticket.ticket_uid }}</code></p>
-        <div class="qr-code">
-            <img src="data:image/png;base64,{{ qr_code_img }}" alt="Ticket QR Code">
+        <div class="qr-code" style="margin: 1.5rem 0;">
+            <img src="data:image/png;base64,{{ qr_code_img }}" alt="Ticket QR Code" style="margin: auto; border: 4px solid #e5e7eb; border-radius: 8px;">
         </div>
-        <p class="instructions">
+        <p style="font-size: 0.9rem; color: #6b7280;">
             Present this QR code at the event entrance for scanning. This is your proof of purchase.
         </p>
 
-        <!-- Actions for the user -->
-        <div class="ticket-actions" style="margin-top: 20px; display: flex; gap: 10px; justify-content: center;">
+        <!-- Action Buttons -->
+        <div style="margin-top: 2rem; display: flex; gap: 1rem; justify-content: center;">
             <a href="{{ url_for('download_ticket', ticket_id=ticket.id) }}" class="btn">Download PDF</a>
-            <a href="{{ url_for('resend_email_ticket', ticket_id=ticket.id) }}" class="btn" style="background-color: #0056b3;">Email Ticket</a>
+            <a href="{{ url_for('resend_email_ticket', ticket_id=ticket.id) }}" class="btn-alt">Email Ticket</a>
         </div>
     </div>
 {% endblock %}
-
