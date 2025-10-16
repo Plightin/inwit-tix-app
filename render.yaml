@@ -1,25 +1,17 @@
 # Blueprint for deploying Inwit Tix on Render using a Paid Plan and Docker
-
-databases:
-  - name: inwit-tix-db
-    plan: 'starter'
+# This version connects to a pre-existing, manually created database.
 
 services:
   - name: inwit-tix-app
     type: web
     env: docker
-    plan: 'starter'
+    plan: 'starter' # This is still a valid plan for the web service
     healthCheckPath: /
-    # UPDATED: Use a pre-deploy command, which runs after the database is confirmed to be online.
-    # The command is now more explicit to work correctly.
-    preDeployCommand: "python -m flask init-db"
+    # The preDeployCommand has been removed. Initialization will be done manually.
     envVars:
+      # The DATABASE_URL must be set manually in the Render dashboard environment tab
       - key: FLASK_APP
         value: app:app
-      - key: DATABASE_URL
-        fromDatabase:
-          name: inwit-tix-db
-          property: connectionString
       - key: SECRET_KEY
         generateValue: true
       - key: UPLOAD_FOLDER
