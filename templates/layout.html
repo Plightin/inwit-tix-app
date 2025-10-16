@@ -5,42 +5,44 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}Inwit Tix{% endblock %}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
+<body class="bg-gray-100">
     <nav>
-        <div class="container">
-            <a href="{{ url_for('index') }}" class="brand">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo">
-                <span class="separator"></span>
-                <span class="motto">Your Digital Gateway to Events</span>
+        <div class="nav-container">
+            <a href="{{ url_for('index') }}" class="brand-container">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo" class="brand-logo">
+                <div class="separator"></div>
+                <span class="brand-motto">Your Digital Gateway to Events</span>
             </a>
             <ul>
                 <li><a href="{{ url_for('index') }}">Events</a></li>
                 {% if current_user.is_authenticated %}
                     <li><a href="{{ url_for('profile') }}">My Profile</a></li>
                     <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
+                    <li><a href="{{ url_for('scanner') }}">Scan Ticket</a></li>
                     <li><a href="{{ url_for('logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('login') }}">Login</a></li>
                     <li><a href="{{ url_for('register') }}">Register</a></li>
                 {% endif %}
-                <li><a href="{{ url_for('scan') }}">Scan Ticket</a></li>
             </ul>
         </div>
     </nav>
-    <main class="container">
+    <main class="main-container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
+                <div class="flash-messages">
                 {% for category, message in messages %}
                     <div class="alert alert-{{ category }}">{{ message }}</div>
                 {% endfor %}
+                </div>
             {% endif %}
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
-    <footer>
-        <p>&copy; 2025 Inwit Systems Ltd. All rights reserved.</p>
+    <footer class="footer">
+        <p>&copy; {% now 'utc', '%Y' %} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
 </html>
-
