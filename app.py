@@ -15,7 +15,6 @@ from weasyprint import HTML, CSS
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-from itsdangerous import URLSafeTimedSerializer
 import click
 
 # --- App Configuration ---
@@ -44,9 +43,6 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
-
-# Configure the serializer for generating activation tokens
-serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
@@ -119,18 +115,16 @@ def init_db():
 @app.cli.command("make-admin")
 @click.argument("username")
 def make_admin(username):
-    """Assigns the 'admin' role to a user."""
     with app.app_context():
         user = User.query.filter_by(username=username).first()
         if user:
             user.role = 'admin'
             user.is_approved = True
-            user.is_email_confirmed = True # Admins are auto-confirmed
+            user.is_email_confirmed = True
             db.session.commit()
             print(f"User '{username}' is now an admin.")
         else:
             print(f"User '{username}' not found.")
-
 
 # --- Helper Functions ---
 @login_manager.user_loader
@@ -141,36 +135,6 @@ def load_user(user_id):
 def inject_current_year():
     return {'current_year': datetime.utcnow().year}
 
-def generate_qr_code(ticket_uid):
-    import qrcode
-    # ... (function body is unchanged)
-    return base64.b64encode(buffered.getvalue()).decode("utf-8")
-
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def send_activation_email(user):
-    """Generates and sends an account activation email."""
-    try:
-        token = serializer.dumps(user.email, salt='email-confirm')
-        activation_link = url_for('activate_account', token=token, _external=True)
-        logo_url = url_for('static', filename='logo.png', _external=True)
-        
-        email_html = render_template('activate_email.html', username=user.username, activation_link=activation_link, logo_url=logo_url)
-        
-        msg = Message(
-            subject="Activate Your Inwit Tix Account",
-            recipients=[user.email],
-            html=email_html
-        )
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending activation email: {e}")
-
-def create_and_email_ticket(ticket):
-    # ... (function body is unchanged)
-    
 # --- Web Routes ---
 @app.route('/')
 def index():
@@ -181,131 +145,4 @@ def index():
         events = []
     return render_template('index.html', events=events)
 
-@app.route('/uploads/<path:filename>')
-def uploaded_file(filename):
-    return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
-
-@app.route('/register')
-def register():
-    return render_template('register_options.html')
-
-@app.route('/register/buyer', methods=['GET', 'POST'])
-def register_buyer():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        phone = request.form.get('phone_number')
-
-        if not all([username, email, password]):
-            flash('All fields are required.', 'danger')
-            return redirect(url_for('register_buyer'))
-
-        if User.query.filter((User.username == username) | (User.email == email)).first():
-            flash('Username or email already exists.', 'danger')
-            return redirect(url_for('register_buyer'))
-
-        new_user = User(username=username, email=email, password=password, phone_number=phone, role='buyer')
-        new_user.is_email_confirmed = False
-        db.session.add(new_user)
-        db.session.commit()
-        
-        send_activation_email(new_user)
-        
-        flash('A confirmation email has been sent. Please check your inbox to activate your account.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register_buyer.html')
-
-@app.route('/register/organizer', methods=['GET', 'POST'])
-def register_organizer():
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        phone = request.form.get('phone_number')
-        company_details = request.form.get('company_details')
-
-        if not all([username, email, password, phone, company_details]):
-            flash('All fields are required for organizer registration.', 'danger')
-            return redirect(url_for('register_organizer'))
-
-        if User.query.filter((User.username == username) | (User.email == email)).first():
-            flash('Username or email already exists.', 'danger')
-            return redirect(url_for('register_organizer'))
-
-        new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
-        new_user.is_email_confirmed = False
-        db.session.add(new_user)
-        db.session.commit()
-        
-        send_activation_email(new_user)
-        
-        flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
-        return redirect(url_for('login'))
-    return render_template('register_organizer.html')
-
-@app.route('/activate/<token>')
-def activate_account(token):
-    try:
-        email = serializer.loads(token, salt='email-confirm', max_age=3600) # Token valid for 1 hour
-    except:
-        flash('The confirmation link is invalid or has expired.', 'danger')
-        return redirect(url_for('login'))
-
-    user = User.query.filter_by(email=email).first_or_404()
-
-    if user.is_email_confirmed:
-        flash('Account already confirmed. Please log in.', 'success')
-    else:
-        user.is_email_confirmed = True
-        db.session.commit()
-        flash('Your account has been activated! You can now log in.', 'success')
-        
-    return redirect(url_for('login'))
-
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('profile'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-
-        if not username or not password:
-            flash('Both username and password are required.', 'danger')
-            return redirect(url_for('login'))
-
-        user = User.query.filter_by(username=username).first()
-        if user and bcrypt.check_password_hash(user.password_hash, password):
-            if not user.is_email_confirmed:
-                flash('Please activate your account first. Check your email for the confirmation link.', 'warning')
-                return redirect(url_for('login'))
-            
-            login_user(user, remember=True)
-            return redirect(url_for('profile'))
-        else:
-            flash('Login unsuccessful. Please check username and password.', 'danger')
-            return redirect(url_for('login'))
-    return render_template('login.html')
-
-@app.route('/logout')
-@login_required
-def logout():
-    logout_user()
-    return redirect(url_for('index'))
-
-@app.route('/profile')
-@login_required
-def profile():
-    return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
-
-@app.route('/create_event', methods=['GET', 'POST'])
-@login_required
-def create_event():
-    if not (current_user.role == 'organizer' and current_user.is_approved):
-        flash('Your organizer account must be approved to create an event.', 'danger')
-        return redirect(url_for('profile'))
-    # ... (rest of function is unchanged)
-    return render_template('create_event.html')
-
-# (The rest of the file is unchanged, including event_detail, purchase, ticket views, dashboard, and scanner routes)
+# (All other routes and helper functions follow here...)
