@@ -42,7 +42,8 @@
         {% block content %}{% endblock %}
     </main>
     <footer class="footer">
-        <p>&copy; {% now 'utc', '%Y' %} Inwit Systems Ltd. All rights reserved.</p>
+        <!-- UPDATED: Replaced the invalid 'now' tag with the new 'current_year' variable -->
+        <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
 </html>
