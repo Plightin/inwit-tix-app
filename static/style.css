@@ -108,7 +108,6 @@ nav ul li a:hover {
     margin-bottom: 0.5rem;
 }
 
-/* UPDATED: Simplified and corrected event meta styles */
 .event-meta {
     font-size: 0.875rem;
     color: #6b7280;
@@ -152,7 +151,7 @@ nav ul li a:hover {
 .btn {
     display: inline-block;
     background-color: #ff9800; /* Inwit Orange */
-    color: white;
+    color: white !important; /* Ensure text is always white */
     padding: 10px 20px;
     text-decoration: none;
     border-radius: 0.5rem;
@@ -165,6 +164,13 @@ nav ul li a:hover {
 .btn:hover {
     background-color: #e68900;
 }
+.btn-secondary {
+    background-color: #1a73e8;
+}
+.btn-secondary:hover {
+    background-color: #1765c4;
+}
+
 
 /* Other Components */
 .footer {
@@ -224,6 +230,7 @@ nav ul li a:hover {
     border-radius: 9999px;
     margin-right: 1rem;
 }
+/* UPDATED: Correctly sized dashboard icons */
 .dashboard-card-icon {
     width: 2rem;
     height: 2rem;
