@@ -2,22 +2,22 @@
 {% block title %}My Profile{% endblock %}
 
 {% block content %}
-<div class="container">
-    <div style="margin-bottom: 2.5rem;">
-        <h1 style="font-size: 2.5rem; font-weight: 800; color: #1f2937;">Hello, {{ current_user.username }}!</h1>
-        <p style="color: #6b7280; font-size: 1.1rem; margin-top: 0.25rem;">Welcome to your personal dashboard.</p>
+<div class="main-container">
+    <div style="margin-bottom: 2rem;">
+        <h1 style="font-size: 2.25rem; font-weight: 800; color: #1f2937;">Hello, {{ current_user.username }}!</h1>
+        <p style="color: #6b7280;">Welcome to your profile page.</p>
     </div>
 
     <!-- My Tickets -->
-    <div class="form-card" style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-bottom: 1.5rem;">My Purchased Tickets</h2>
+    <div class="table-container" style="margin-bottom: 2rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Purchased Tickets</h2>
         {% if tickets %}
-            <table class="styled-table">
+            <table class="custom-table">
                 <thead>
                     <tr>
                         <th>Event Name</th>
                         <th>Ticket Type</th>
-                        <th style="text-align: right;">Action</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -25,28 +25,26 @@
                         <tr>
                             <td>{{ ticket.event.name }}</td>
                             <td>{{ ticket.ticket_type }}</td>
-                            <td style="text-align: right;">
-                                <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a>
-                            </td>
+                            <td><a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
-            <p style="text-align: center; color: #6b7280; padding: 2rem 0;">You haven't purchased any tickets yet.</p>
+            <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't purchased any tickets yet.</p>
         {% endif %}
     </div>
 
     <!-- My Events -->
-    <div class="form-card">
-        <h2 style="font-size: 1.5rem; font-weight: 700; color: #1f2937; margin-bottom: 1.5rem;">My Created Events</h2>
+    <div class="table-container">
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Created Events</h2>
         {% if events %}
-            <table class="styled-table">
+            <table class="custom-table">
                 <thead>
                     <tr>
                         <th>Event Name</th>
                         <th>Date & Venue</th>
-                        <th style="text-align: right;">Action</th>
+                        <th>Action</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -54,18 +52,14 @@
                         <tr>
                             <td>{{ event.name }}</td>
                             <td>{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</td>
-                            <td style="text-align: right;">
-                                <a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn-alt">View Dashboard</a>
-                            </td>
+                            <td><a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn btn-secondary">View Dashboard</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>
             </table>
         {% else %}
-            <div style="text-align: center; padding: 2rem 0;">
-                <p style="color: #6b7280;">You haven't created any events yet.</p>
-                <a href="{{ url_for('create_event') }}" class="btn" style="margin-top: 1rem;">Create Your First Event</a>
-            </div>
+            <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't created any events yet.</p>
+            <a href="{{ url_for('create_event') }}" class="btn" style="display: block; width: fit-content; margin: 1rem auto 0;">Create Your First Event</a>
         {% endif %}
     </div>
 </div>
