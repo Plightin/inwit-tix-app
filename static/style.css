@@ -199,6 +199,36 @@ nav ul li a:hover {
     margin-bottom: 0.5rem;
 }
 
+/* Styles for Ticket Selection */
+.ticket-options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+.ticket-option-label {
+    display: block;
+    cursor: pointer;
+    border: 2px solid #e5e7eb;
+    border-radius: 0.75rem;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+.ticket-option-radio {
+    display: none; /* Hide the default radio button */
+}
+.ticket-option-content {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.5rem;
+}
+.ticket-option-radio:checked + .ticket-option-content {
+    background-color: #eff6ff; /* Light blue background for selected */
+}
+.ticket-option-label:has(.ticket-option-radio:checked) {
+    border-color: #3b82f6; /* Blue border for selected */
+}
+
+
 /* Other Components */
 .footer {
     text-align: center;
