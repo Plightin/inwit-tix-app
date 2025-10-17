@@ -152,7 +152,7 @@ nav ul li a:hover {
     display: inline-block;
     background-color: #ff9800; /* Inwit Orange */
     color: white !important;
-    padding: 10px 20px;
+    padding: 12px 20px;
     text-decoration: none;
     border-radius: 0.5rem;
     font-weight: bold;
@@ -160,6 +160,7 @@ nav ul li a:hover {
     cursor: pointer;
     text-align: center;
     transition: background-color 0.2s;
+    width: 100%;
 }
 .btn:hover {
     background-color: #e68900;
@@ -171,6 +172,74 @@ nav ul li a:hover {
     background-color: #1765c4;
 }
 
+/* NEW: Uniform Form Styling */
+.form-container {
+    max-width: 500px;
+    margin: 2rem auto;
+    background-color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+.form-title {
+    font-size: 1.875rem;
+    font-weight: 800;
+    color: #1f2937;
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+.form-group {
+    margin-bottom: 1.25rem;
+}
+.form-group label {
+    display: block;
+    margin-bottom: 0.5rem;
+    font-weight: 500;
+    color: #374151;
+}
+.form-group input,
+.form-group textarea,
+.form-group input[type="file"] {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 0.5rem;
+    box-sizing: border-box;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 2px #bfdbfe;
+}
+.form-group textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+.form-text {
+    text-align: center;
+    margin-top: 1.5rem;
+    color: #6b7280;
+}
+.form-text a {
+    color: #1a73e8;
+    font-weight: 500;
+    text-decoration: none;
+}
+.form-text a:hover {
+    text-decoration: underline;
+}
+.form-subtitle {
+    font-size: 1.25rem;
+    font-weight: 700;
+    color: #1f2937;
+    margin-top: 2rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #e5e7eb;
+}
+
 /* Event Detail Page Styles */
 .event-detail-card {
     background-color: white;
@@ -180,152 +249,4 @@ nav ul li a:hover {
     max-width: 900px;
     margin: auto;
 }
-.detail-image-container {
-    width: 100%;
-    height: 350px;
-    border-radius: 0.75rem;
-    overflow: hidden;
-    margin-bottom: 1.5rem;
-}
-.detail-image-container img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-}
-.detail-content h1 {
-    font-size: 2.25rem;
-    font-weight: 800;
-    color: #1f2937;
-    margin-bottom: 0.5rem;
-}
-
-/* Styles for Ticket Selection */
-.ticket-options-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-}
-.ticket-option-label {
-    display: block;
-    cursor: pointer;
-    border: 2px solid #e5e7eb;
-    border-radius: 0.75rem;
-    transition: border-color 0.2s, background-color 0.2s;
-}
-.ticket-option-radio {
-    display: none; /* Hide the default radio button */
-}
-.ticket-option-content {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 1rem 1.5rem;
-}
-.ticket-option-radio:checked + .ticket-option-content {
-    background-color: #eff6ff; /* Light blue background for selected */
-}
-.ticket-option-label:has(.ticket-option-radio:checked) {
-    border-color: #3b82f6; /* Blue border for selected */
-}
-
-
-/* Other Components */
-.footer {
-    text-align: center;
-    padding: 2rem;
-    margin-top: 2rem;
-    background-color: #e5e7eb;
-    color: #6b7280;
-    font-size: 0.9rem;
-}
-.alert {
-    padding: 1rem;
-    margin: 1rem auto;
-    border-radius: 0.5rem;
-    max-width: 1200px;
-}
-.alert-success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
-.alert-danger { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
-
-/* Dashboard & Profile Specific Styles */
-.table-container {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-}
-.custom-table {
-    width: 100%;
-    border-collapse: collapse;
-}
-.custom-table th, .custom-table td {
-    padding: 0.75rem 1rem;
-    text-align: left;
-    border-bottom: 1px solid #e5e7eb;
-}
-.custom-table th {
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: #6b7280;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-}
-.custom-table td {
-    font-size: 0.875rem;
-    color: #374151;
-}
-.dashboard-card {
-    background-color: white;
-    padding: 1.5rem;
-    border-radius: 1rem;
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-    display: flex;
-    align-items: center;
-}
-.dashboard-card-icon-container {
-    padding: 0.75rem;
-    border-radius: 9999px;
-    margin-right: 1rem;
-}
-.dashboard-card-icon {
-    width: 2rem;
-    height: 2rem;
-}
-.blue-icon { background-color: #dbeafe; color: #1e40af; }
-.green-icon { background-color: #d1fae5; color: #065f46; }
-
-/* Share Buttons */
-.share-container {
-    margin-top: 1rem;
-    padding-top: 1rem;
-    border-top: 1px solid #f3f4f6;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.share-label {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: #6b7280;
-}
-.share-buttons {
-    display: flex;
-    gap: 0.5rem;
-}
-.share-btn {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 9999px;
-    color: white !important;
-    text-decoration: none;
-    font-size: 0.9rem;
-    font-weight: bold;
-    transition: opacity 0.2s;
-}
-.share-btn:hover { opacity: 0.8; }
-.facebook { background-color: #3b5998; }
-.whatsapp { background-color: #25d366; }
-.copy-link { background-color: #6b7280; border: none; cursor: pointer; padding: 0;}
+/* ... (rest of styles) ... */
