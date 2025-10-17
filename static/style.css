@@ -151,7 +151,7 @@ nav ul li a:hover {
 .btn {
     display: inline-block;
     background-color: #ff9800; /* Inwit Orange */
-    color: white !important; /* Ensure text is always white */
+    color: white !important;
     padding: 10px 20px;
     text-decoration: none;
     border-radius: 0.5rem;
@@ -171,6 +171,33 @@ nav ul li a:hover {
     background-color: #1765c4;
 }
 
+/* Event Detail Page Styles */
+.event-detail-card {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 1rem;
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+    max-width: 900px;
+    margin: auto;
+}
+.detail-image-container {
+    width: 100%;
+    height: 350px;
+    border-radius: 0.75rem;
+    overflow: hidden;
+    margin-bottom: 1.5rem;
+}
+.detail-image-container img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.detail-content h1 {
+    font-size: 2.25rem;
+    font-weight: 800;
+    color: #1f2937;
+    margin-bottom: 0.5rem;
+}
 
 /* Other Components */
 .footer {
@@ -230,7 +257,6 @@ nav ul li a:hover {
     border-radius: 9999px;
     margin-right: 1rem;
 }
-/* UPDATED: Correctly sized dashboard icons */
 .dashboard-card-icon {
     width: 2rem;
     height: 2rem;
