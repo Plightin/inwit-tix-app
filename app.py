@@ -15,8 +15,6 @@ from weasyprint import HTML, CSS
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-# UPDATED: Added the missing import for the token serializer
-from itsdangerous import URLSafeTimedSerializer
 import click
 
 # --- App Configuration ---
@@ -54,8 +52,8 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 # Initialize Serializer after SECRET_KEY is configured
-# This will now work because the import has been added
-serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
+serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
+
 
 # --- Database Models ---
 class User(db.Model, UserMixin):
@@ -210,22 +208,17 @@ def register_buyer():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
-
         if not all([username, email, password]):
             flash('All fields are required.', 'danger')
             return redirect(url_for('register_buyer'))
-
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
             return redirect(url_for('register_buyer'))
-
         new_user = User(username=username, email=email, password=password, phone_number=phone, role='buyer')
         new_user.is_email_confirmed = False
         db.session.add(new_user)
         db.session.commit()
-        
         send_activation_email(new_user)
-        
         flash('A confirmation email has been sent. Please check your inbox to activate your account.', 'success')
         return redirect(url_for('login'))
     return render_template('register_buyer.html')
@@ -240,22 +233,17 @@ def register_organizer():
         password = request.form.get('password')
         phone = request.form.get('phone_number')
         company_details = request.form.get('company_details')
-
         if not all([username, email, password, phone, company_details]):
             flash('All fields are required for organizer registration.', 'danger')
             return redirect(url_for('register_organizer'))
-
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
             return redirect(url_for('register_organizer'))
-
         new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
         new_user.is_email_confirmed = False
         db.session.add(new_user)
         db.session.commit()
-        
         send_activation_email(new_user)
-        
         flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
         return redirect(url_for('login'))
     return render_template('register_organizer.html')
@@ -323,13 +311,10 @@ def create_event():
         if file.filename == '' or not allowed_file(file.filename):
             flash('No selected file or file type not allowed', 'danger')
             return redirect(request.url)
-
         filename = secure_filename(file.filename)
         unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
-        
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(file_path)
-
         name = request.form.get('name')
         description = request.form.get('description')
         venue = request.form.get('venue')
@@ -338,16 +323,11 @@ def create_event():
         price_ordinary = request.form.get('price_ordinary', type=float) or 0
         price_vip = request.form.get('price_vip', type=float) or 0
         price_vvip = request.form.get('price_vvip', type=float) or 0
-
-        new_event = Event(name=name, description=description, venue=venue, 
-                          event_datetime=event_datetime, artwork=unique_filename,
-                          creator=current_user, price_ordinary=price_ordinary,
-                          price_vip=price_vip, price_vvip=price_vvip)
+        new_event = Event(name=name, description=description, venue=venue, event_datetime=event_datetime, artwork=unique_filename, creator=current_user, price_ordinary=price_ordinary, price_vip=price_vip, price_vvip=price_vvip)
         db.session.add(new_event)
         db.session.commit()
         flash('Event created successfully!', 'success')
         return redirect(url_for('index'))
-
     return render_template('create_event.html')
 
 @app.route('/event/<int:event_id>')
@@ -360,11 +340,9 @@ def event_detail(event_id):
 def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
-    
     if not ticket_type:
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-
     price_paid = 0
     if ticket_type == 'Ordinary':
         price_paid = event.price_ordinary
@@ -372,18 +350,10 @@ def purchase_ticket(event_id):
         price_paid = event.price_vip
     elif ticket_type == 'VVIP':
         price_paid = event.price_vvip
-
-    new_ticket = Ticket(
-        owner=current_user,
-        event=event,
-        ticket_type=ticket_type,
-        price_paid=price_paid
-    )
+    new_ticket = Ticket(owner=current_user, event=event, ticket_type=ticket_type, price_paid=price_paid)
     db.session.add(new_ticket)
     db.session.commit()
-    
     create_and_email_ticket(new_ticket)
-    
     return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
 
 @app.route('/ticket/<int:ticket_id>')
@@ -401,19 +371,11 @@ def download_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     if ticket.owner != current_user:
         abort(403)
-
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     logo_url = url_for('static', filename='logo.png', _external=True)
-
     html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
     pdf = HTML(string=html_out, base_url=request.url_root).write_pdf()
-    
-    return send_file(
-        BytesIO(pdf),
-        mimetype='application/pdf',
-        as_attachment=True,
-        download_name=f'inwit-tix-ticket-{ticket.id}.pdf'
-    )
+    return send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=f'inwit-tix-ticket-{ticket.id}.pdf')
 
 @app.route('/ticket/email/<int:ticket_id>')
 @login_required
@@ -435,22 +397,34 @@ def verify_ticket():
     data = request.get_json()
     if not data or 'ticket_uid' not in data:
         return jsonify({'status': 'danger', 'message': 'Invalid request.'}), 400
-
     ticket_uid = data['ticket_uid']
     ticket = Ticket.query.filter_by(ticket_uid=ticket_uid).first()
-    
     if not ticket:
         return jsonify({'status': 'danger', 'message': f'INVALID: Ticket not found.'})
-    
     if ticket.event.creator != current_user:
         return jsonify({'status': 'danger', 'message': 'UNAUTHORIZED: You did not create this event.'})
-        
     if ticket.is_scanned:
         return jsonify({'status': 'warning', 'message': f'ALREADY SCANNED: Ticket for {ticket.owner.username} was used.'})
     else:
         ticket.is_scanned = True
         db.session.commit()
         return jsonify({'status': 'success', 'message': f'SUCCESS: Welcome, {ticket.owner.username}! ({ticket.ticket_type})'})
+
+@app.route('/dashboard/<int:event_id>')
+@login_required
+def event_dashboard(event_id):
+    event = Event.query.get_or_404(event_id)
+    if event.creator != current_user:
+        abort(403)
+    tickets = event.tickets
+    total_tickets_sold = len(tickets)
+    total_revenue = sum(ticket.price_paid for ticket in tickets)
+    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue': 0}}
+    for ticket in tickets:
+        if ticket.ticket_type in sales_by_type:
+            sales_by_type[ticket.ticket_type]['count'] += 1
+            sales_by_type[ticket.ticket_type]['revenue'] += ticket.price_paid
+    return render_template('dashboard.html', event=event, total_tickets_sold=total_tickets_sold, total_revenue=total_revenue, sales_by_type=sales_by_type, tickets=tickets)
 
 @app.route('/admin')
 @login_required
