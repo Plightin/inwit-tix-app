@@ -1,0 +1,42 @@
+{% extends 'layout.html' %}
+{% block title %}Organizer Approvals{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <h1 class="form-title" style="text-align: left; margin-bottom: 0;">Pending Organizer Approvals</h1>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn" style="width: auto;">&larr; Back to Admin</a>
+    </div>
+
+    <div class="table-container">
+        {% if organizers %}
+            <table class="custom-table">
+                <thead>
+                    <tr>
+                        <th>Username</th>
+                        <th>Email / Phone</th>
+                        <th>Company Details</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for org in organizers %}
+                        <tr>
+                            <td>{{ org.username }}</td>
+                            <td>{{ org.email }}<br>{{ org.phone_number }}</td>
+                            <td style="white-space: pre-wrap; max-width: 300px;">{{ org.company_details }}</td>
+                            <td>
+                                <form action="{{ url_for('approve_organizer', user_id=org.id) }}" method="post">
+                                    <button type="submit" class="btn btn-secondary" style="width: auto;">Approve</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        {% else %}
+            <p style="text-align: center; padding: 1rem; color: #6b7280;">There are no pending organizer approvals.</p>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}
