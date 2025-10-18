@@ -195,6 +195,10 @@ def index():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/help')
+def help_page():
+    return render_template('help.html')
+
 @app.route('/register')
 def register():
     return render_template('register_options.html')
