@@ -15,8 +15,6 @@ from weasyprint import HTML, CSS
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-# UPDATED: Added the missing import for the token serializer
-from itsdangerous import URLSafeTimedSerializer
 import click
 
 # --- App Configuration ---
@@ -54,7 +52,6 @@ login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 
 # Initialize Serializer after SECRET_KEY is configured
-# This will now work because the import has been added
 serializer = URLSafeTimedSerializer(app.config["SECRET_KEY"])
 
 # --- Database Models ---
