@@ -8,7 +8,8 @@ n=0
 until [ "$n" -ge 5 ]
 do
    echo "Running database initialization (Attempt $((n+1)))..."
-   flask init-db && break  # attempt to initialize and exit loop if successful
+   # Use python -m flask to be explicit
+   python -m flask init-db && break  # attempt to initialize and exit loop if successful
    n=$((n+1))
    echo "Database not ready, waiting 5 seconds..."
    sleep 5
