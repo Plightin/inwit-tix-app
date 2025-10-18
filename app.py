@@ -4,6 +4,7 @@ import base64
 from io import BytesIO
 from datetime import datetime
 from pathlib import Path
+import re
 from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify
 from flask_sqlalchemy import SQLAlchemy
@@ -17,7 +18,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 from itsdangerous import URLSafeTimedSerializer
 import click
-# NEW: Imports for rate limiting
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 
@@ -54,16 +54,17 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
 
-# NEW: Initialize and configure Flask-Limiter
+# Initialize and configure Flask-Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
-
 
 # --- Database Models ---
 class User(db.Model, UserMixin):
@@ -150,6 +151,17 @@ def load_user(user_id):
 def inject_current_year():
     return {'current_year': datetime.utcnow().year}
 
+def is_password_strong(password):
+    if len(password) < 8:
+        return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password):
+        return False, "Password must contain an uppercase letter."
+    if not re.search(r"[a-z]", password):
+        return False, "Password must contain a lowercase letter."
+    if not re.search(r"[0-9]", password):
+        return False, "Password must contain a number."
+    return True, ""
+
 def generate_qr_code(ticket_uid):
     import qrcode
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -233,9 +245,17 @@ def register_buyer():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
-        if not all([username, email, password]):
+        if not all([username, email, password, confirm_password]):
             flash('All fields are required.', 'danger')
+            return redirect(url_for('register_buyer'))
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('register_buyer'))
+        is_strong, message = is_password_strong(password)
+        if not is_strong:
+            flash(message, 'danger')
             return redirect(url_for('register_buyer'))
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
@@ -258,10 +278,18 @@ def register_organizer():
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
         company_details = request.form.get('company_details')
-        if not all([username, email, password, phone, company_details]):
+        if not all([username, email, password, confirm_password, phone, company_details]):
             flash('All fields are required for organizer registration.', 'danger')
+            return redirect(url_for('register_organizer'))
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('register_organizer'))
+        is_strong, message = is_password_strong(password)
+        if not is_strong:
+            flash(message, 'danger')
             return redirect(url_for('register_organizer'))
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
