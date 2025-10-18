@@ -1,0 +1,34 @@
+{% extends 'layout.html' %}
+{% block title %}Create Organizer Account{% endblock %}
+{% block content %}
+    <div class="form-container">
+        <h1 class="form-title">Become an Event Organizer</h1>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 1.5rem;">Please provide your details. Your account will be reviewed before you can create events.</p>
+        <form method="post">
+            <div class="form-group">
+                <label for="username">Your Name or Company Name</label>
+                <input type="text" name="username" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Contact Email Address</label>
+                <input type="email" name="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label for="phone_number">Contact Phone Number</label>
+                <input type="tel" name="phone_number" id="phone_number" placeholder="e.g., 0977123456" required>
+            </div>
+            <div class="form-group">
+                <label for="company_details">Company Details & Motivation</label>
+                <textarea name="company_details" id="company_details" placeholder="Tell us a bit about your organization and the events you plan to host." required></textarea>
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password" required>
+            </div>
+            <button type="submit" class="btn" style="margin-top: 1rem;">Submit Application</button>
+        </form>
+        <p class="form-text">
+            Just looking to buy tickets? <a href="{{ url_for('register_buyer') }}">Sign up as an attendee</a>.
+        </p>
+    </div>
+{% endblock %}
