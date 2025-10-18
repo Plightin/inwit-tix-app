@@ -1,0 +1,29 @@
+{% extends 'layout.html' %}
+{% block title %}Create Attendee Account{% endblock %}
+{% block content %}
+    <div class="form-container">
+        <h1 class="form-title">Create Your Attendee Account</h1>
+        <form method="post">
+            <div class="form-group">
+                <label for="username">Username</label>
+                <input type="text" name="username" id="username" required>
+            </div>
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" name="email" id="email" required>
+            </div>
+            <div class="form-group">
+                <label for="phone_number">Phone Number (Optional)</label>
+                <input type="tel" name="phone_number" id="phone_number" placeholder="e.g., 0977123456">
+            </div>
+            <div class="form-group">
+                <label for="password">Password</label>
+                <input type="password" name="password" id="password" required>
+            </div>
+            <button type="submit" class="btn" style="margin-top: 1rem;">Create Account</button>
+        </form>
+        <p class="form-text">
+            Want to create events? <a href="{{ url_for('register_organizer') }}">Sign up as an organizer</a>.
+        </p>
+    </div>
+{% endblock %}
