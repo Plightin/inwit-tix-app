@@ -17,6 +17,9 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
 from itsdangerous import URLSafeTimedSerializer
 import click
+# NEW: Imports for rate limiting
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 
 # --- App Configuration ---
 load_dotenv()
@@ -51,9 +54,15 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
-# Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
+
+# NEW: Initialize and configure Flask-Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 
 
 # --- Database Models ---
@@ -216,6 +225,7 @@ def register():
     return render_template('register_options.html')
 
 @app.route('/register/buyer', methods=['GET', 'POST'])
+@limiter.limit("10 per hour")
 def register_buyer():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -240,6 +250,7 @@ def register_buyer():
     return render_template('register_buyer.html')
 
 @app.route('/register/organizer', methods=['GET', 'POST'])
+@limiter.limit("5 per hour")
 def register_organizer():
     if current_user.is_authenticated:
         return redirect(url_for('index'))
@@ -281,6 +292,7 @@ def activate_account(token):
     return redirect(url_for('login'))
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
@@ -298,24 +310,21 @@ def reset_password(token):
     except:
         flash('The password reset link is invalid or has expired.', 'danger')
         return redirect(url_for('forgot_password'))
-
     user = User.query.filter_by(email=email).first_or_404()
-
     if request.method == 'POST':
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         if password != confirm_password:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('reset_password', token=token))
-        
         user.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         db.session.commit()
         flash('Your password has been updated! You can now log in.', 'success')
         return redirect(url_for('login'))
-
     return render_template('reset_password.html', token=token)
 
 @app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("10 per minute")
 def login():
     if current_user.is_authenticated:
         return redirect(url_for('profile'))
