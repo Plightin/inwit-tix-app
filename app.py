@@ -55,6 +55,7 @@ login_manager.login_view = 'login'
 # Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
 
+
 # --- Database Models ---
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
@@ -165,6 +166,17 @@ def send_activation_email(user):
     except Exception as e:
         print(f"Error sending activation email: {e}")
 
+def send_password_reset_email(user):
+    try:
+        token = serializer.dumps(user.email, salt='password-reset')
+        reset_link = url_for('reset_password', token=token, _external=True)
+        logo_url = url_for('static', filename='logo.png', _external=True)
+        email_html = render_template('reset_email.html', username=user.username, reset_link=reset_link, logo_url=logo_url)
+        msg = Message(subject="Reset Your Inwit Tix Password", recipients=[user.email], html=email_html)
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending password reset email: {e}")
+
 def create_and_email_ticket(ticket):
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
@@ -267,6 +279,41 @@ def activate_account(token):
         db.session.commit()
         flash('Your account has been activated! You can now log in.', 'success')
     return redirect(url_for('login'))
+
+@app.route('/forgot-password', methods=['GET', 'POST'])
+def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            send_password_reset_email(user)
+        flash('If an account with that email exists, a password reset link has been sent.', 'info')
+        return redirect(url_for('login'))
+    return render_template('forgot_password.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    try:
+        email = serializer.loads(token, salt='password-reset', max_age=3600)
+    except:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('forgot_password'))
+
+    user = User.query.filter_by(email=email).first_or_404()
+
+    if request.method == 'POST':
+        password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
+        if password != confirm_password:
+            flash('Passwords do not match.', 'danger')
+            return redirect(url_for('reset_password', token=token))
+        
+        user.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        db.session.commit()
+        flash('Your password has been updated! You can now log in.', 'success')
+        return redirect(url_for('login'))
+
+    return render_template('reset_password.html', token=token)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
