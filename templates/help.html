@@ -1,0 +1,78 @@
+{% extends 'layout.html' %}
+{% block title %}Help Guide{% endblock %}
+
+{% block content %}
+<div class="main-container" style="max-width: 900px;">
+    <h1 class="form-title">Inwit Tix Help Guide</h1>
+    <p style="text-align: center; color: #6b7280; margin-top: -1rem; margin-bottom: 3rem;">Welcome! This guide will walk you through all the features of the platform.</p>
+
+    <!-- For Ticket Buyers -->
+    <div class="help-section">
+        <h2 class="help-title">For Ticket Buyers</h2>
+        
+        <h4>1. Creating Your Account</h4>
+        <ul>
+            <li><strong>Choose Your Role:</strong> When you click "Register," select <strong>"Buy Tickets"</strong>.</li>
+            <li><strong>Fill Out Your Details:</strong> Complete the simple registration form.</li>
+            <li><strong>Activate Your Email:</strong> You will receive an email with an activation link. You must click this link to confirm your email and activate your account before you can log in.</li>
+        </ul>
+
+        <h4>2. Finding and Purchasing Tickets</h4>
+        <ul>
+            <li><strong>Browse Events:</strong> The homepage displays all upcoming events.</li>
+            <li><strong>View Details:</strong> Click "View Details & Buy Ticket" on any event to see more information and ticket prices.</li>
+            <li><strong>Purchase:</strong> On the event detail page, select your desired ticket type and click "Buy Ticket".</li>
+        </ul>
+
+        <h4>3. Accessing Your Ticket</h4>
+        <p>Once your purchase is complete, your ticket is immediately available in three ways:</p>
+        <ol>
+            <li><strong>On-Screen:</strong> You'll be redirected to a page displaying your digital ticket with its unique QR code.</li>
+            <li><strong>Via Email:</strong> A confirmation email will be sent to you with the ticket attached as a PDF.</li>
+            <li><strong>In Your Profile:</strong> You can access all your purchased tickets at any time by clicking "My Profile". From there, you can view, download, or resend the ticket to your email.</li>
+        </ol>
+    </div>
+
+    <!-- For Event Organizers -->
+    <div class="help-section">
+        <h2 class="help-title">For Event Organizers</h2>
+
+        <h4>1. Creating an Organizer Account</h4>
+        <ul>
+            <li><strong>Choose Your Role:</strong> On the registration page, select <strong>"Organize Events"</strong>.</li>
+            <li><strong>Submit Your Application:</strong> Fill out the form with your company name and contact details. A phone number and company details are mandatory.</li>
+            <li><strong>Activate & Wait for Approval:</strong> First, you must click the activation link sent to your email. After your email is confirmed, your application will be reviewed by an admin. You cannot create events until your account is approved.</li>
+        </ul>
+
+        <h4>2. Creating an Event & The Dashboard</h4>
+        <ul>
+            <li><strong>Create Event:</strong> Once approved, the "Create Event" link will appear in your navigation bar. Fill out the form to list your event.</li>
+            <li><strong>Access Dashboard:</strong> Go to "My Profile" and click the "View Dashboard" button next to any event you've created.</li>
+            <li><strong>Key Insights:</strong> The dashboard provides real-time data on total revenue, total tickets sold, sales by ticket type, and a complete attendee list.</li>
+        </ul>
+        
+        <h4>3. Scanning Tickets at Your Event</h4>
+         <ul>
+            <li><strong>Access:</strong> Log in to your organizer account on a smartphone and click the "Scan Ticket" link in the navigation.</li>
+            <li><strong>How it Works:</strong> The app uses your phone's camera to instantly verify a ticket's QR code and will show if the ticket is valid, has already been used, or is invalid.</li>
+            <li><strong>Security:</strong> Only the user who created an event can scan tickets for that event.</li>
+        </ul>
+    </div>
+
+    <!-- For Site Administrators -->
+    <div class="help-section">
+        <h2 class="help-title">For Site Administrators</h2>
+        <h4>1. Becoming an Administrator</h4>
+         <ul>
+            <li><strong>Register a User:</strong> First, create a regular user account through the website.</li>
+            <li><strong>Connect to the Shell:</strong> Log in to your Render dashboard, go to your web service, and open the "Shell" tab.</li>
+            <li><strong>Run the Command:</strong> Execute the command `python -m flask make-admin "YourUsername"`, replacing "YourUsername" with the exact username you want to promote.</li>
+        </ul>
+        <h4>2. Approving Organizers</h4>
+         <ul>
+            <li><strong>Access:</strong> After logging in as an admin, an "Admin" link will appear in your navigation bar. Click it to go to the admin dashboard.</li>
+            <li><strong>View & Approve:</strong> Click "View Organizer Approvals" to see a list of pending applications. Review the details and click "Approve" to grant them access.</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
