@@ -19,8 +19,18 @@
                 <li><a href="{{ url_for('index') }}">Events</a></li>
                 {% if current_user.is_authenticated %}
                     <li><a href="{{ url_for('profile') }}">My Profile</a></li>
-                    <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
-                    <li><a href="{{ url_for('scanner') }}">Scan Ticket</a></li>
+                    
+                    <!-- Show organizer links only if approved -->
+                    {% if current_user.role == 'organizer' and current_user.is_approved %}
+                        <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
+                        <li><a href="{{ url_for('scanner') }}">Scan Ticket</a></li>
+                    {% endif %}
+                    
+                    <!-- CORRECTED: Show admin link for admins -->
+                    {% if current_user.role == 'admin' %}
+                        <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
+                    {% endif %}
+                    
                     <li><a href="{{ url_for('logout') }}">Logout</a></li>
                 {% else %}
                     <li><a href="{{ url_for('login') }}">Login</a></li>
@@ -42,7 +52,6 @@
         {% block content %}{% endblock %}
     </main>
     <footer class="footer">
-        <!-- UPDATED: Replaced the invalid 'now' tag with the new 'current_year' variable -->
         <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
