@@ -18,12 +18,72 @@
             </div>
             <div class="form-group">
                 <label for="password">Password</label>
-                <input type="password" name="password" id="password" required>
+                <input type="password" name="password" id="password" required pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters">
             </div>
+            <div class="form-group">
+                <label for="confirm_password">Confirm Password</label>
+                <input type="password" name="confirm_password" id="confirm_password" required>
+            </div>
+            
+            <!-- Password validation checklist -->
+            <div id="password-validation" class="password-reqs">
+                <p>Password must contain:</p>
+                <ul>
+                    <li id="length" class="invalid">At least 8 characters</li>
+                    <li id="lower" class="invalid">A lowercase letter</li>
+                    <li id="upper" class="invalid">An uppercase letter</li>
+                    <li id="number" class="invalid">A number</li>
+                </ul>
+            </div>
+
             <button type="submit" class="btn" style="margin-top: 1rem;">Create Account</button>
         </form>
         <p class="form-text">
             Want to create events? <a href="{{ url_for('register_organizer') }}">Sign up as an organizer</a>.
         </p>
     </div>
+    
+    <script>
+        // JavaScript for real-time password validation
+        const passwordInput = document.getElementById('password');
+        const length = document.getElementById('length');
+        const lower = document.getElementById('lower');
+        const upper = document.getElementById('upper');
+        const number = document.getElementById('number');
+
+        passwordInput.onkeyup = function() {
+            // Validate length
+            if(passwordInput.value.length >= 8) {
+                length.classList.remove("invalid");
+                length.classList.add("valid");
+            } else {
+                length.classList.remove("valid");
+                length.classList.add("invalid");
+            }
+            // Validate lowercase
+            if(passwordInput.value.match(/[a-z]/g)) {
+                lower.classList.remove("invalid");
+                lower.classList.add("valid");
+            } else {
+                lower.classList.remove("valid");
+                lower.classList.add("invalid");
+            }
+            // Validate uppercase
+            if(passwordInput.value.match(/[A-Z]/g)) {
+                upper.classList.remove("invalid");
+                upper.classList.add("valid");
+            } else {
+                upper.classList.remove("valid");
+                upper.classList.add("invalid");
+            }
+            // Validate numbers
+            if(passwordInput.value.match(/[0-9]/g)) {
+                number.classList.remove("invalid");
+                number.classList.add("valid");
+            } else {
+                number.classList.remove("valid");
+                number.classList.add("invalid");
+            }
+        }
+    </script>
 {% endblock %}
