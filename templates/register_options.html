@@ -1,0 +1,25 @@
+{% extends 'layout.html' %}
+{% block title %}Choose Your Account Type{% endblock %}
+
+{% block content %}
+<div class="main-container" style="max-width: 800px;">
+    <h1 class="form-title">Join Inwit Tix</h1>
+    <p style="text-align: center; color: #6b7280; margin-bottom: 2.5rem;">Are you here to discover events or to create and manage them?</p>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <a href="{{ url_for('register_buyer') }}" class="role-card">
+            <h2 class="role-title">Buy Tickets</h2>
+            <p class="role-description">Sign up as an attendee to discover, purchase, and manage your tickets for events across Zambia.</p>
+            <span class="role-button">Get Started &rarr;</span>
+        </a>
+        <a href="{{ url_for('register_organizer') }}" class="role-card">
+            <h2 class="role-title">Organize Events</h2>
+            <p class="role-description">Sign up as an organizer to create, manage, and track your events with our powerful dashboard and tools.</p>
+            <span class="role-button">Become an Organizer &rarr;</span>
+        </a>
+    </div>
+     <p class="form-text">
+        Already have an account? <a href="{{ url_for('login') }}">Log in here</a>.
+    </p>
+</div>
+{% endblock %}
