@@ -15,7 +15,8 @@
             <button type="submit" class="btn" style="margin-top: 1rem;">Login</button>
         </form>
         <p class="form-text">
-            Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.
+            Don't have an account? <a href="{{ url_for('register') }}">Register here</a>.<br>
+            <a href="{{ url_for('forgot_password') }}" style="margin-top: 0.5rem; display: inline-block;">Forgot Password?</a>
         </p>
     </div>
 {% endblock %}
