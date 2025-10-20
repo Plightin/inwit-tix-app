@@ -34,7 +34,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'zip'}
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -74,6 +74,7 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), nullable=False, default='buyer')
+    company_details = db.Column(db.Text, nullable=True)
     approval_status = db.Column(db.String(20), nullable=False, default='approved')
     rejection_reason = db.Column(db.Text, nullable=True)
     is_email_confirmed = db.Column(db.Boolean, nullable=False, default=False)
@@ -83,12 +84,13 @@ class User(db.Model, UserMixin):
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, role='buyer', phone_number=None):
+    def __init__(self, username, email, password, role='buyer', phone_number=None, company_details=None):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         self.role = role
         self.phone_number = phone_number
+        self.company_details = company_details
         if self.role == 'organizer':
             self.approval_status = 'pending'
 
@@ -153,14 +155,10 @@ def inject_current_year():
     return {'current_year': datetime.utcnow().year}
 
 def is_password_strong(password):
-    if len(password) < 8:
-        return False, "Password must be at least 8 characters long."
-    if not re.search(r"[A-Z]", password):
-        return False, "Password must contain an uppercase letter."
-    if not re.search(r"[a-z]", password):
-        return False, "Password must contain a lowercase letter."
-    if not re.search(r"[0-9]", password):
-        return False, "Password must contain a number."
+    if len(password) < 8: return False, "Password must be at least 8 characters long."
+    if not re.search(r"[A-Z]", password): return False, "Password must contain an uppercase letter."
+    if not re.search(r"[a-z]", password): return False, "Password must contain a lowercase letter."
+    if not re.search(r"[0-9]", password): return False, "Password must contain a number."
     return True, ""
 
 def generate_qr_code(ticket_uid):
@@ -301,45 +299,35 @@ def register_organizer():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
-
         if not all([username, email, password, confirm_password, phone]):
             flash('All text fields are required for organizer registration.', 'danger')
             return redirect(url_for('register_organizer'))
-
         if password != confirm_password:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('register_organizer'))
-
         is_strong, message = is_password_strong(password)
         if not is_strong:
             flash(message, 'danger')
             return redirect(url_for('register_organizer'))
-
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
             return redirect(url_for('register_organizer'))
-
         profile_doc = request.files.get('company_profile_doc')
         tax_doc = request.files.get('tax_clearance_doc')
         banking_doc = request.files.get('banking_details_doc')
-
         if not profile_doc or profile_doc.filename == '' or \
            not tax_doc or tax_doc.filename == '' or \
            not banking_doc or banking_doc.filename == '':
             flash('All document uploads are required.', 'danger')
             return redirect(url_for('register_organizer'))
-        
         new_user = User(username=username, email=email, password=password, phone_number=phone, role='organizer')
         db.session.add(new_user)
         db.session.commit()
-
         new_user.company_profile_doc = save_document(profile_doc, new_user.id)
         new_user.tax_clearance_doc = save_document(tax_doc, new_user.id)
         new_user.banking_details_doc = save_document(banking_doc, new_user.id)
-        
         new_user.is_email_confirmed = False
         db.session.commit()
-        
         send_activation_email(new_user)
         flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
         return redirect(url_for('login'))
