@@ -17,8 +17,6 @@
             </a>
             <ul>
                 <li><a href="{{ url_for('index') }}">Events</a></li>
-                <!-- UPDATED: Moved Help link to the main navigation -->
-                <li><a href="{{ url_for('help_page') }}">Help</a></li>
                 {% if current_user.is_authenticated %}
                     <li><a href="{{ url_for('profile') }}">My Profile</a></li>
                     
@@ -38,6 +36,7 @@
                     <li><a href="{{ url_for('login') }}">Login</a></li>
                     <li><a href="{{ url_for('register') }}">Register</a></li>
                 {% endif %}
+                <li><a href="{{ url_for('help_page') }}">Help</a></li>
             </ul>
         </div>
     </nav>
