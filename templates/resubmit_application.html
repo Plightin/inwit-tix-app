@@ -1,0 +1,50 @@
+{% extends 'layout.html' %}
+{% block title %}Update Your Application{% endblock %}
+{% block content %}
+    <div class="form-container">
+        <h1 class="form-title">Update Your Organizer Application</h1>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 1.5rem;">Please review the reason your application was denied, update your details below, and resubmit for a new review.</p>
+        
+        <div class="status-banner status-rejected" style="margin-bottom: 1.5rem;">
+            <strong>Reason for Denial:</strong> {{ current_user.rejection_reason }}
+        </div>
+        
+        <form method="post" enctype="multipart/form-data">
+            <div class="form-group">
+                <label for="phone_number">Contact Phone Number</label>
+                <input type="tel" name="phone_number" id="phone_number" value="{{ current_user.phone_number }}" required>
+            </div>
+            <div class="form-group">
+                <label for="company_details">Company Details & Motivation</label>
+                <textarea name="company_details" id="company_details" required>{{ current_user.company_details }}</textarea>
+            </div>
+
+            <h2 class="form-subtitle">Update Compliance Documents</h2>
+            <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem;">You can upload new documents to replace the existing ones if required.</p>
+
+            <div class="form-group">
+                <label for="company_profile_doc">Company Profile</label>
+                {% if current_user.company_profile_doc %}
+                    <p class="form-text" style="text-align: left; margin: 0 0 5px 0;">Current file: <a href="{{ url_for('uploaded_file', filename=current_user.company_profile_doc) }}" target="_blank">View</a></p>
+                {% endif %}
+                <input type="file" name="company_profile_doc" id="company_profile_doc" accept=".pdf,.zip">
+            </div>
+            <div class="form-group">
+                <label for="tax_clearance_doc">Tax Clearance Certificate</label>
+                 {% if current_user.tax_clearance_doc %}
+                    <p class="form-text" style="text-align: left; margin: 0 0 5px 0;">Current file: <a href="{{ url_for('uploaded_file', filename=current_user.tax_clearance_doc) }}" target="_blank">View</a></p>
+                {% endif %}
+                <input type="file" name="tax_clearance_doc" id="tax_clearance_doc" accept=".pdf,.zip">
+            </div>
+            <div class="form-group">
+                <label for="banking_details_doc">Banking Details</label>
+                 {% if current_user.banking_details_doc %}
+                    <p class="form-text" style="text-align: left; margin: 0 0 5px 0;">Current file: <a href="{{ url_for('uploaded_file', filename=current_user.banking_details_doc) }}" target="_blank">View</a></p>
+                {% endif %}
+                <input type="file" name="banking_details_doc" id="banking_details_doc" accept=".pdf,.zip">
+            </div>
+
+            <button type="submit" class="btn" style="margin-top: 1.5rem;">Resubmit Application</button>
+        </form>
+    </div>
+{% endblock %}
