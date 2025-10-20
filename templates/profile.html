@@ -67,7 +67,7 @@
                     {% for event in events %}
                         <tr>
                             <td>{{ event.name }}</td>
-                            <td>{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</td>
+                            <td>{{ event.event_datetime|to_local_time(fmt='%d %b %Y') }} at {{ event.venue }}</td>
                             <td><a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn btn-secondary" style="width: auto;">View Dashboard</a></td>
                         </tr>
                     {% endfor %}
