@@ -2,11 +2,11 @@ import os
 import uuid
 import base64
 from io import BytesIO
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import re
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
@@ -35,6 +35,7 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -80,6 +81,7 @@ class User(db.Model, UserMixin):
     company_profile_doc = db.Column(db.String(100), nullable=True)
     tax_clearance_doc = db.Column(db.String(100), nullable=True)
     banking_details_doc = db.Column(db.String(100), nullable=True)
+    session_id = db.Column(db.String(36), nullable=True)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
@@ -125,6 +127,14 @@ class Ticket(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
 
+class AuditLog(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    action = db.Column(db.String(100), nullable=False)
+    details = db.Column(db.Text, nullable=True)
+    user = db.relationship('User')
+
 # --- Admin & Authorization ---
 def admin_required(f):
     @wraps(f)
@@ -155,9 +165,17 @@ def make_admin(username):
             print(f"User '{username}' not found.")
 
 # --- Helper Functions ---
+@app.before_request
+def make_session_permanent():
+    session.permanent = True
+    app.permanent_session_lifetime = timedelta(hours=8)
+
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    user = User.query.get(int(user_id))
+    if user and session.get('session_id') == user.session_id:
+        return user
+    return None
 
 @app.context_processor
 def inject_current_year():
@@ -241,6 +259,12 @@ def send_organizer_status_email(user, status, reason=None):
         mail.send(msg)
     except Exception as e:
         print(f"Error sending organizer status email: {e}")
+
+def log_audit_event(action, details, user=None):
+    user_id = user.id if user else None
+    log = AuditLog(user_id=user_id, action=action, details=details)
+    db.session.add(log)
+    db.session.commit()
 
 # --- Web Routes ---
 @app.route('/')
@@ -386,7 +410,9 @@ def reset_password(token):
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('reset_password', token=token))
         user.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
+        user.session_id = str(uuid.uuid4())
         db.session.commit()
+        log_audit_event("password_reset", f"User '{user.username}' reset their password.", user=user)
         flash('Your password has been updated! You can now log in.', 'success')
         return redirect(url_for('login'))
     return render_template('reset_password.html', token=token)
@@ -407,7 +433,11 @@ def login():
             if not user.is_email_confirmed:
                 flash('Please activate your account first. Check your email for the confirmation link.', 'warning')
                 return redirect(url_for('login'))
+            user.session_id = str(uuid.uuid4())
+            db.session.commit()
             login_user(user, remember=True)
+            session['session_id'] = user.session_id
+            log_audit_event("user_login", f"User '{user.username}' logged in.", user=user)
             return redirect(url_for('profile'))
         else:
             flash('Login unsuccessful. Please check username and password.', 'danger')
@@ -417,8 +447,19 @@ def login():
 @app.route('/logout')
 @login_required
 def logout():
+    log_audit_event("user_logout", f"User '{current_user.username}' logged out.", user=current_user)
     logout_user()
     return redirect(url_for('index'))
+
+@app.route('/profile/logout-all', methods=['POST'])
+@login_required
+def logout_all_sessions():
+    current_user.session_id = str(uuid.uuid4())
+    db.session.commit()
+    session['session_id'] = current_user.session_id
+    log_audit_event("logout_all_sessions", f"User '{current_user.username}' logged out of all other devices.", user=current_user)
+    flash('You have been logged out of all other devices.', 'success')
+    return redirect(url_for('profile'))
 
 @app.route('/profile')
 @login_required
@@ -433,19 +474,15 @@ def resubmit_application():
     
     if request.method == 'POST':
         current_user.phone_number = request.form.get('phone_number')
-        
         if 'company_profile_doc' in request.files:
             new_profile = save_document(request.files['company_profile_doc'], current_user.id)
             if new_profile: current_user.company_profile_doc = new_profile
-        
         if 'tax_clearance_doc' in request.files:
             new_tax = save_document(request.files['tax_clearance_doc'], current_user.id)
             if new_tax: current_user.tax_clearance_doc = new_tax
-            
         if 'banking_details_doc' in request.files:
             new_banking = save_document(request.files['banking_details_doc'], current_user.id)
             if new_banking: current_user.banking_details_doc = new_banking
-        
         current_user.approval_status = 'pending'
         current_user.rejection_reason = None
         db.session.commit()
@@ -468,40 +505,30 @@ def create_event():
         if file.filename == '' or not allowed_file(file.filename):
             flash('No selected file or file type not allowed', 'danger')
             return redirect(request.url)
-        filename = secure_filename(file.filename)
-        unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        
         purchase_limit = request.form.get('purchase_limit')
         if not purchase_limit:
             flash('The "Max Tickets Per Purchase" field is required.', 'danger')
             return redirect(url_for('create_event'))
 
+        filename = secure_filename(file.filename)
+        unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file.save(file_path)
+        
         new_event = Event(
-            name=request.form.get('name'),
-            description=request.form.get('description'),
-            venue=request.form.get('venue'),
-            event_datetime=datetime.strptime(request.form.get('event_datetime'), '%Y-%m-%dT%H:%M'),
-            artwork=unique_filename,
-            creator=current_user,
-            price_ordinary=request.form.get('price_ordinary', type=float) or None,
-            price_vip=request.form.get('price_vip', type=float) or None,
-            price_vvip=request.form.get('price_vvip', type=float) or None,
-            tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None,
-            tickets_vip=request.form.get('tickets_vip', type=int) or None,
-            tickets_vvip=request.form.get('tickets_vvip', type=int) or None,
+            name=request.form.get('name'), description=request.form.get('description'), venue=request.form.get('venue'),
+            event_datetime=datetime.strptime(request.form.get('event_datetime'), '%Y-%m-%dT%H:%M'), artwork=unique_filename, creator=current_user,
+            price_ordinary=request.form.get('price_ordinary', type=float) or None, price_vip=request.form.get('price_vip', type=float) or None,
+            price_vvip=request.form.get('price_vvip', type=float) or None, tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None,
+            tickets_vip=request.form.get('tickets_vip', type=int) or None, tickets_vvip=request.form.get('tickets_vvip', type=int) or None,
             sales_start_date=datetime.strptime(request.form.get('sales_start_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_start_date') else None,
             sales_end_date=datetime.strptime(request.form.get('sales_end_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_end_date') else None,
-            category=request.form.get('category'),
-            organizer_name=request.form.get('organizer_name'),
-            contact_info=request.form.get('contact_info'),
-            external_link=request.form.get('external_link'),
-            purchase_limit=int(purchase_limit),
-            is_unlisted='is_unlisted' in request.form
+            category=request.form.get('category'), organizer_name=request.form.get('organizer_name'), contact_info=request.form.get('contact_info'),
+            external_link=request.form.get('external_link'), purchase_limit=int(purchase_limit), is_unlisted='is_unlisted' in request.form
         )
         db.session.add(new_event)
         db.session.commit()
+        log_audit_event("create_event", f"Organizer '{current_user.username}' created event '{new_event.name}'.", user=current_user)
         flash('Event created successfully!', 'success')
         return redirect(url_for('index'))
     return render_template('create_event.html')
@@ -642,6 +669,7 @@ def review_organizer(user_id):
         organizer.rejection_reason = None
         db.session.commit()
         send_organizer_status_email(organizer, 'approved')
+        log_audit_event("approve_organizer", f"Admin '{current_user.username}' approved organizer '{organizer.username}'.", user=current_user)
         flash(f"Organizer '{organizer.username}' has been approved.", 'success')
     elif action == 'deny':
         reason = request.form.get('reason')
@@ -652,9 +680,17 @@ def review_organizer(user_id):
         organizer.rejection_reason = reason
         db.session.commit()
         send_organizer_status_email(organizer, 'rejected', reason=reason)
+        log_audit_event("deny_organizer", f"Admin '{current_user.username}' denied organizer '{organizer.username}'. Reason: {reason}", user=current_user)
         flash(f"Organizer '{organizer.username}' has been denied.", 'warning')
         
     return redirect(url_for('admin_approvals'))
+
+@app.route('/admin/audit-log')
+@login_required
+@admin_required
+def admin_audit_log():
+    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
+    return render_template('admin_audit_log.html', logs=logs)
 
 if __name__ == '__main__':
     with app.app_context():
