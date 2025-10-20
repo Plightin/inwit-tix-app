@@ -17,11 +17,13 @@
             </a>
             <ul>
                 <li><a href="{{ url_for('index') }}">Events</a></li>
+                <!-- UPDATED: Moved Help link to the main navigation -->
+                <li><a href="{{ url_for('help_page') }}">Help</a></li>
                 {% if current_user.is_authenticated %}
                     <li><a href="{{ url_for('profile') }}">My Profile</a></li>
                     
                     <!-- Show organizer links only if approved -->
-                    {% if current_user.role == 'organizer' and current_user.is_approved %}
+                    {% if current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
                         <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
                         <li><a href="{{ url_for('scanner') }}">Scan Ticket</a></li>
                     {% endif %}
@@ -52,7 +54,8 @@
         {% block content %}{% endblock %}
     </main>
     <footer class="footer">
-        <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved. | <a href="{{ url_for('help_page') }}" style="color: #bbb; text-decoration: none;">Help</a></p>
+        <!-- UPDATED: Removed the Help link from the footer -->
+        <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
 </html>
