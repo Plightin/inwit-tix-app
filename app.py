@@ -20,6 +20,7 @@ from itsdangerous import URLSafeTimedSerializer
 import click
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import pytz
 
 # --- App Configuration ---
 load_dotenv()
@@ -55,17 +56,16 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
-# Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-
-# Initialize and configure Flask-Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
+
+# Set up timezone
+LUSAKA_TZ = pytz.timezone('Africa/Lusaka')
 
 # --- Database Models ---
 class User(db.Model, UserMixin):
@@ -135,6 +135,7 @@ class AuditLog(db.Model):
     details = db.Column(db.Text, nullable=True)
     user = db.relationship('User')
 
+
 # --- Admin & Authorization ---
 def admin_required(f):
     @wraps(f)
@@ -179,7 +180,14 @@ def load_user(user_id):
 
 @app.context_processor
 def inject_current_year():
-    return {'current_year': datetime.utcnow().year}
+    return {'current_year': datetime.now(LUSAKA_TZ).year}
+
+@app.template_filter('to_local_time')
+def to_local_time(utc_dt, fmt='%A, %d %B %Y at %I:%M %p'):
+    if utc_dt is None:
+        return ""
+    local_dt = utc_dt.replace(tzinfo=pytz.utc).astimezone(LUSAKA_TZ)
+    return local_dt.strftime(fmt)
 
 def is_password_strong(password):
     if len(password) < 8: return False, "Password must be at least 8 characters long."
@@ -270,7 +278,7 @@ def log_audit_event(action, details, user=None):
 @app.route('/')
 def index():
     try:
-        now = datetime.utcnow()
+        now = datetime.now(pytz.utc)
         events = Event.query.filter(Event.is_unlisted == False, Event.event_datetime > now).order_by(Event.event_datetime.asc()).all()
     except Exception as e:
         print(f"Database error on index: {e}")
@@ -474,15 +482,19 @@ def resubmit_application():
     
     if request.method == 'POST':
         current_user.phone_number = request.form.get('phone_number')
+        
         if 'company_profile_doc' in request.files:
             new_profile = save_document(request.files['company_profile_doc'], current_user.id)
             if new_profile: current_user.company_profile_doc = new_profile
+        
         if 'tax_clearance_doc' in request.files:
             new_tax = save_document(request.files['tax_clearance_doc'], current_user.id)
             if new_tax: current_user.tax_clearance_doc = new_tax
+            
         if 'banking_details_doc' in request.files:
             new_banking = save_document(request.files['banking_details_doc'], current_user.id)
             if new_banking: current_user.banking_details_doc = new_banking
+        
         current_user.approval_status = 'pending'
         current_user.rejection_reason = None
         db.session.commit()
@@ -546,11 +558,11 @@ def purchase_ticket(event_id):
     if not ticket_type:
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-    now = datetime.utcnow()
-    if event.sales_start_date and now < event.sales_start_date:
+    now = datetime.now(pytz.utc)
+    if event.sales_start_date and now < event.sales_start_date.replace(tzinfo=pytz.utc):
         flash('Ticket sales have not started for this event yet.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-    if event.sales_end_date and now > event.sales_end_date:
+    if event.sales_end_date and now > event.sales_end_date.replace(tzinfo=pytz.utc):
         flash('Ticket sales for this event have ended.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
     ticket_count = Ticket.query.filter_by(event_id=event.id, ticket_type=ticket_type).count()
