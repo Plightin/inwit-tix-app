@@ -54,7 +54,11 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
+
+# Initialize and configure Flask-Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -108,7 +112,7 @@ class Event(db.Model):
     organizer_name = db.Column(db.String(100), nullable=True)
     contact_info = db.Column(db.String(100), nullable=True)
     external_link = db.Column(db.String(200), nullable=True)
-    purchase_limit = db.Column(db.Integer, nullable=True)
+    purchase_limit = db.Column(db.Integer, nullable=False)
     is_unlisted = db.Column(db.Boolean, default=False)
 
 class Ticket(db.Model):
@@ -468,33 +472,33 @@ def create_event():
         unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
         file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(file_path)
-        name = request.form.get('name')
-        description = request.form.get('description')
-        venue = request.form.get('venue')
-        event_datetime_str = request.form.get('event_datetime')
-        event_datetime = datetime.strptime(event_datetime_str, '%Y-%m-%dT%H:%M')
-        price_ordinary = request.form.get('price_ordinary', type=float) or None
-        price_vip = request.form.get('price_vip', type=float) or None
-        price_vvip = request.form.get('price_vvip', type=float) or None
-        tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None
-        tickets_vip=request.form.get('tickets_vip', type=int) or None
-        tickets_vvip=request.form.get('tickets_vvip', type=int) or None
-        sales_start_date=datetime.strptime(request.form.get('sales_start_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_start_date') else None
-        sales_end_date=datetime.strptime(request.form.get('sales_end_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_end_date') else None
-        category=request.form.get('category')
-        organizer_name=request.form.get('organizer_name')
-        contact_info=request.form.get('contact_info')
-        external_link=request.form.get('external_link')
-        purchase_limit=request.form.get('purchase_limit', type=int) or None
-        is_unlisted='is_unlisted' in request.form
         
+        purchase_limit = request.form.get('purchase_limit')
+        if not purchase_limit:
+            flash('The "Max Tickets Per Purchase" field is required.', 'danger')
+            return redirect(url_for('create_event'))
+
         new_event = Event(
-            name=name, description=description, venue=venue, event_datetime=event_datetime, artwork=unique_filename, creator=current_user,
-            price_ordinary=price_ordinary, price_vip=price_vip, price_vvip=price_vvip,
-            tickets_ordinary=tickets_ordinary, tickets_vip=tickets_vip, tickets_vvip=tickets_vvip,
-            sales_start_date=sales_start_date, sales_end_date=sales_end_date, category=category,
-            organizer_name=organizer_name, contact_info=contact_info, external_link=external_link,
-            purchase_limit=purchase_limit, is_unlisted=is_unlisted
+            name=request.form.get('name'),
+            description=request.form.get('description'),
+            venue=request.form.get('venue'),
+            event_datetime=datetime.strptime(request.form.get('event_datetime'), '%Y-%m-%dT%H:%M'),
+            artwork=unique_filename,
+            creator=current_user,
+            price_ordinary=request.form.get('price_ordinary', type=float) or None,
+            price_vip=request.form.get('price_vip', type=float) or None,
+            price_vvip=request.form.get('price_vvip', type=float) or None,
+            tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None,
+            tickets_vip=request.form.get('tickets_vip', type=int) or None,
+            tickets_vvip=request.form.get('tickets_vvip', type=int) or None,
+            sales_start_date=datetime.strptime(request.form.get('sales_start_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_start_date') else None,
+            sales_end_date=datetime.strptime(request.form.get('sales_end_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_end_date') else None,
+            category=request.form.get('category'),
+            organizer_name=request.form.get('organizer_name'),
+            contact_info=request.form.get('contact_info'),
+            external_link=request.form.get('external_link'),
+            purchase_limit=int(purchase_limit),
+            is_unlisted='is_unlisted' in request.form
         )
         db.session.add(new_event)
         db.session.commit()
@@ -515,7 +519,6 @@ def purchase_ticket(event_id):
     if not ticket_type:
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-    
     now = datetime.utcnow()
     if event.sales_start_date and now < event.sales_start_date:
         flash('Ticket sales have not started for this event yet.', 'danger')
@@ -523,17 +526,14 @@ def purchase_ticket(event_id):
     if event.sales_end_date and now > event.sales_end_date:
         flash('Ticket sales for this event have ended.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-
     ticket_count = Ticket.query.filter_by(event_id=event.id, ticket_type=ticket_type).count()
     max_tickets = 0
     if ticket_type == 'Ordinary': max_tickets = event.tickets_ordinary
     elif ticket_type == 'VIP': max_tickets = event.tickets_vip
     elif ticket_type == 'VVIP': max_tickets = event.tickets_vvip
-    
     if max_tickets is not None and ticket_count >= max_tickets:
         flash(f'Sorry, {ticket_type} tickets are sold out.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
-        
     price_paid = 0
     if ticket_type == 'Ordinary':
         price_paid = event.price_ordinary
