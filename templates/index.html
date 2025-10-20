@@ -33,7 +33,6 @@
                     <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn" style="width: 100%; margin-top: 1rem;">View Details & Buy Ticket</a>
 
                     <div class="share-container">
-                        <span class="share-label">Share:</span>
                         <div class="share-buttons">
                             <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn facebook">f</a>
                             <a href="https://wa.me/?text=Check out this event: {{ event.name }} at {{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn whatsapp">w</a>
