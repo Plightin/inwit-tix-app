@@ -340,7 +340,7 @@ nav ul li a:hover {
 /* Other Components */
 .footer {
     text-align: center;
-    padding: 20px;
+    padding: 2rem;
     margin-top: auto;
     background-color: #333;
     color: #aaa;
@@ -353,6 +353,9 @@ nav ul li a:hover {
 }
 .alert-success { color: #155724; background-color: #d4edda; border: 1px solid #c3e6cb; }
 .alert-danger { color: #721c24; background-color: #f8d7da; border: 1px solid #f5c6cb; }
+.alert-warning { color: #856404; background-color: #fff3cd; border-color: #ffeeba;}
+.alert-info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb;}
+
 
 /* Dashboard & Profile Specific Styles */
 .table-container {
@@ -410,6 +413,11 @@ nav ul li a:hover {
     align-items: center;
     justify-content: flex-end;
 }
+.share-label {
+    font-size: 0.8rem;
+    font-weight: 500;
+    color: #6b7280;
+}
 .share-buttons {
     display: flex;
     gap: 0.5rem;
@@ -426,9 +434,6 @@ nav ul li a:hover {
     font-size: 0.9rem;
     font-weight: bold;
     transition: opacity 0.2s;
-    background-size: 60%;
-    background-position: center;
-    background-repeat: no-repeat;
 }
 .share-btn:hover { opacity: 0.8; }
 .facebook { background-color: #3b5998; }
@@ -465,4 +470,27 @@ nav ul li a:hover {
 .role-button {
     font-weight: 600;
     color: #3b82f6;
+}
+
+/* Organizer Status Banners */
+.status-banner {
+    padding: 1rem 1.5rem;
+    margin-bottom: 2rem;
+    border-radius: 0.75rem;
+    border: 1px solid transparent;
+}
+.status-pending {
+    background-color: #fef3c7;
+    border-color: #fde68a;
+    color: #92400e;
+}
+.status-approved {
+    background-color: #d1fae5;
+    border-color: #a7f3d0;
+    color: #065f46;
+}
+.status-rejected {
+    background-color: #fee2e2;
+    border-color: #fecaca;
+    color: #991b1b;
 }
