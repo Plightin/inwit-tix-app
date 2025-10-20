@@ -33,8 +33,8 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
-app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'zip'}
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -75,9 +75,12 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), nullable=False, default='buyer')
     company_details = db.Column(db.Text, nullable=True)
-    is_approved = db.Column(db.Boolean, nullable=False, default=False)
+    approval_status = db.Column(db.String(20), nullable=False, default='approved')
+    rejection_reason = db.Column(db.Text, nullable=True)
     is_email_confirmed = db.Column(db.Boolean, nullable=False, default=False)
-    
+    company_profile_doc = db.Column(db.String(100), nullable=True)
+    tax_clearance_doc = db.Column(db.String(100), nullable=True)
+    banking_details_doc = db.Column(db.String(100), nullable=True)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
@@ -88,8 +91,8 @@ class User(db.Model, UserMixin):
         self.role = role
         self.phone_number = phone_number
         self.company_details = company_details
-        if self.role == 'buyer':
-            self.is_approved = True
+        if self.role == 'organizer':
+            self.approval_status = 'pending'
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -135,7 +138,7 @@ def make_admin(username):
         user = User.query.filter_by(username=username).first()
         if user:
             user.role = 'admin'
-            user.is_approved = True
+            user.approval_status = 'approved'
             user.is_email_confirmed = True
             db.session.commit()
             print(f"User '{username}' is now an admin.")
@@ -176,6 +179,15 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+def save_document(file_storage, user_id):
+    if file_storage and file_storage.filename != '' and allowed_file(file_storage.filename):
+        filename = secure_filename(file_storage.filename)
+        unique_filename = f"user_{user_id}_{uuid.uuid4().hex[:8]}_{filename}"
+        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
+        file_storage.save(file_path)
+        return unique_filename
+    return None
+
 def send_activation_email(user):
     try:
         token = serializer.dumps(user.email, salt='email-confirm')
@@ -213,6 +225,17 @@ def create_and_email_ticket(ticket):
     except Exception as e:
         print(f"Error emailing ticket: {e}")
         flash('There was an issue emailing your ticket. Please configure your email settings.', 'danger')
+
+def send_organizer_status_email(user, status, reason=None):
+    try:
+        logo_url = url_for('static', filename='logo.png', _external=True)
+        resubmit_link = url_for('resubmit_application', _external=True) if status == 'rejected' else None
+        email_html = render_template('organizer_status_email.html', user=user, status=status, reason=reason, resubmit_link=resubmit_link, logo_url=logo_url)
+        subject = f"Your Inwit Tix Organizer Application has been {status.capitalize()}"
+        msg = Message(subject=subject, recipients=[user.email], html=email_html)
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending organizer status email: {e}")
 
 # --- Web Routes ---
 @app.route('/')
@@ -294,10 +317,20 @@ def register_organizer():
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
             return redirect(url_for('register_organizer'))
+        if 'company_profile_doc' not in request.files or 'tax_clearance_doc' not in request.files or 'banking_details_doc' not in request.files:
+            flash('All document uploads are required.', 'danger')
+            return redirect(url_for('register_organizer'))
+
         new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
-        new_user.is_email_confirmed = False
         db.session.add(new_user)
         db.session.commit()
+
+        new_user.company_profile_doc = save_document(request.files['company_profile_doc'], new_user.id)
+        new_user.tax_clearance_doc = save_document(request.files['tax_clearance_doc'], new_user.id)
+        new_user.banking_details_doc = save_document(request.files['banking_details_doc'], new_user.id)
+        
+        db.session.commit()
+
         send_activation_email(new_user)
         flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
         return redirect(url_for('login'))
@@ -385,10 +418,41 @@ def logout():
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
+@app.route('/resubmit-application', methods=['GET', 'POST'])
+@login_required
+def resubmit_application():
+    if not (current_user.role == 'organizer' and current_user.approval_status == 'rejected'):
+        abort(403)
+    
+    if request.method == 'POST':
+        current_user.phone_number = request.form.get('phone_number')
+        current_user.company_details = request.form.get('company_details')
+        
+        if 'company_profile_doc' in request.files:
+            new_profile = save_document(request.files['company_profile_doc'], current_user.id)
+            if new_profile: current_user.company_profile_doc = new_profile
+        
+        if 'tax_clearance_doc' in request.files:
+            new_tax = save_document(request.files['tax_clearance_doc'], current_user.id)
+            if new_tax: current_user.tax_clearance_doc = new_tax
+            
+        if 'banking_details_doc' in request.files:
+            new_banking = save_document(request.files['banking_details_doc'], current_user.id)
+            if new_banking: current_user.banking_details_doc = new_banking
+        
+        current_user.approval_status = 'pending'
+        current_user.rejection_reason = None
+        db.session.commit()
+        flash('Your application has been resubmitted for review.', 'success')
+        return redirect(url_for('profile'))
+
+    return render_template('resubmit_application.html')
+
+
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
-    if not (current_user.role == 'organizer' and current_user.is_approved):
+    if not (current_user.role == 'organizer' and current_user.approval_status == 'approved'):
         flash('Your organizer account must be approved to create an event.', 'danger')
         return redirect(url_for('profile'))
     if request.method == 'POST':
@@ -524,17 +588,33 @@ def admin_dashboard():
 @login_required
 @admin_required
 def admin_approvals():
-    pending_organizers = User.query.filter_by(role='organizer', is_approved=False).all()
+    pending_organizers = User.query.filter_by(role='organizer', approval_status='pending').all()
     return render_template('admin_approvals.html', organizers=pending_organizers)
 
-@app.route('/admin/approve/<int:user_id>', methods=['POST'])
+@app.route('/admin/review/<int:user_id>', methods=['POST'])
 @login_required
 @admin_required
-def approve_organizer(user_id):
+def review_organizer(user_id):
     organizer = User.query.get_or_404(user_id)
-    organizer.is_approved = True
-    db.session.commit()
-    flash(f"Organizer '{organizer.username}' has been approved.", 'success')
+    action = request.form.get('action')
+    
+    if action == 'approve':
+        organizer.approval_status = 'approved'
+        organizer.rejection_reason = None
+        db.session.commit()
+        send_organizer_status_email(organizer, 'approved')
+        flash(f"Organizer '{organizer.username}' has been approved.", 'success')
+    elif action == 'deny':
+        reason = request.form.get('reason')
+        if not reason:
+            flash('A reason is required to deny an application.', 'danger')
+            return redirect(url_for('admin_approvals'))
+        organizer.approval_status = 'rejected'
+        organizer.rejection_reason = reason
+        db.session.commit()
+        send_organizer_status_email(organizer, 'rejected', reason=reason)
+        flash(f"Organizer '{organizer.username}' has been denied.", 'warning')
+        
     return redirect(url_for('admin_approvals'))
 
 if __name__ == '__main__':
