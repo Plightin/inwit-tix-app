@@ -164,7 +164,7 @@ def is_password_strong(password):
     if not re.search(r"[0-9]", password):
         return False, "Password must contain a number."
     return True, ""
-
+    
 def generate_qr_code(ticket_uid):
     import qrcode
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -320,17 +320,14 @@ def register_organizer():
         if 'company_profile_doc' not in request.files or 'tax_clearance_doc' not in request.files or 'banking_details_doc' not in request.files:
             flash('All document uploads are required.', 'danger')
             return redirect(url_for('register_organizer'))
-
         new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
         db.session.add(new_user)
         db.session.commit()
-
         new_user.company_profile_doc = save_document(request.files['company_profile_doc'], new_user.id)
         new_user.tax_clearance_doc = save_document(request.files['tax_clearance_doc'], new_user.id)
         new_user.banking_details_doc = save_document(request.files['banking_details_doc'], new_user.id)
-        
+        new_user.is_email_confirmed = False
         db.session.commit()
-
         send_activation_email(new_user)
         flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
         return redirect(url_for('login'))
@@ -447,7 +444,6 @@ def resubmit_application():
         return redirect(url_for('profile'))
 
     return render_template('resubmit_application.html')
-
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
