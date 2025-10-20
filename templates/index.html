@@ -14,7 +14,7 @@
                     <div class="event-meta">
                         <div class="meta-item">
                             <svg xmlns="http://www.w3.org/2000/svg" class="meta-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
-                            <span>{{ event.event_datetime.strftime('%d %b %Y, %I:%M %p') }}</span>
+                            <span>{{ event.event_datetime|to_local_time(fmt='%d %b %Y, %I:%M %p') }}</span>
                         </div>
                         <div class="meta-item">
                              <svg xmlns="http://www.w3.org/2000/svg" class="meta-icon" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
@@ -33,6 +33,7 @@
                     <a href="{{ url_for('event_detail', event_id=event.id) }}" class="btn" style="width: 100%; margin-top: 1rem;">View Details & Buy Ticket</a>
 
                     <div class="share-container">
+                        <span class="share-label">Share:</span>
                         <div class="share-buttons">
                             <a href="https://www.facebook.com/sharer/sharer.php?u={{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn facebook">f</a>
                             <a href="https://wa.me/?text=Check out this event: {{ event.name }} at {{ request.url_root }}event/{{ event.id }}" target="_blank" class="share-btn whatsapp">w</a>
@@ -44,8 +45,8 @@
         {% else %}
             <div class="col-span-full text-center py-12 bg-white rounded-lg shadow">
                 <p class="text-gray-500">No events have been created yet. Be the first!</p>
-                {% if current_user.is_authenticated %}
-                    <a href="{{ url_for('create_event') }}" class="btn mt-4">Create an Event</a>
+                {% if current_user.is_authenticated and current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
+                    <a href="{{ url_for('create_event') }}" class="btn mt-4" style="width: auto;">Create an Event</a>
                 {% endif %}
             </div>
         {% endfor %}
