@@ -14,8 +14,8 @@
                 <thead>
                     <tr>
                         <th>Username</th>
-                        <th>Email / Phone</th>
-                        <th>Company Details</th>
+                        <th>Contact</th>
+                        <th>Documents</th>
                         <th>Action</th>
                     </tr>
                 </thead>
@@ -24,10 +24,20 @@
                         <tr>
                             <td>{{ org.username }}</td>
                             <td>{{ org.email }}<br>{{ org.phone_number }}</td>
-                            <td style="white-space: pre-wrap; max-width: 300px;">{{ org.company_details }}</td>
                             <td>
-                                <form action="{{ url_for('approve_organizer', user_id=org.id) }}" method="post">
-                                    <button type="submit" class="btn btn-secondary" style="width: auto;">Approve</button>
+                                <ul style="padding: 0; list-style: none; margin: 0;">
+                                    {% if org.company_profile_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.company_profile_doc) }}" target="_blank">Profile</a></li>{% endif %}
+                                    {% if org.tax_clearance_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.tax_clearance_doc) }}" target="_blank">Tax</a></li>{% endif %}
+                                    {% if org.banking_details_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.banking_details_doc) }}" target="_blank">Banking</a></li>{% endif %}
+                                </ul>
+                            </td>
+                            <td>
+                                <!-- UPDATED: The form action now correctly points to 'review_organizer' -->
+                                <form action="{{ url_for('review_organizer', user_id=org.id) }}" method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <button type="submit" name="action" value="approve" class="btn btn-secondary" style="width: auto; background-color: #10b981;">Approve</button>
+                                    <hr style="margin: 0.5rem 0;">
+                                    <textarea name="reason" placeholder="Reason for denial..." class="form-group" style="width: 100%; min-height: 60px; margin-bottom: 0.5rem;"></textarea>
+                                    <button type="submit" name="action" value="deny" class="btn" style="width: auto; background-color: #ef4444;">Deny</button>
                                 </form>
                             </td>
                         </tr>
