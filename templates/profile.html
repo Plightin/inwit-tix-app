@@ -8,6 +8,21 @@
         <p style="color: #6b7280;">Welcome to your profile page.</p>
     </div>
 
+    <!-- Organizer Status Section -->
+    {% if current_user.role == 'organizer' %}
+        <div class="status-banner status-{{ current_user.approval_status }}">
+            {% if current_user.approval_status == 'pending' %}
+                <strong>Application Pending:</strong> Your organizer account is currently under review.
+            {% elif current_user.approval_status == 'approved' %}
+                <strong>Application Approved:</strong> You can now create and manage events.
+            {% elif current_user.approval_status == 'rejected' %}
+                <strong>Application Denied:</strong> Your application was not approved.
+                <p style="margin-top: 0.5rem; font-size: 0.9em;"><strong>Reason:</strong> {{ current_user.rejection_reason }}</p>
+                <a href="{{ url_for('resubmit_application') }}" class="btn" style="width: auto; margin-top: 1rem; font-size: 0.8rem; padding: 8px 12px;">Update & Resubmit Application</a>
+            {% endif %}
+        </div>
+    {% endif %}
+
     <!-- My Tickets -->
     <div class="table-container" style="margin-bottom: 2rem;">
         <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Purchased Tickets</h2>
@@ -25,7 +40,7 @@
                         <tr>
                             <td>{{ ticket.event.name }}</td>
                             <td>{{ ticket.ticket_type }}</td>
-                            <td><a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn">View Ticket</a></td>
+                            <td><a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn" style="width: auto;">View Ticket</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -36,7 +51,8 @@
     </div>
 
     <!-- My Events -->
-    <div class="table-container">
+    {% if current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
+    <div class="table-container" style="margin-bottom: 2rem;">
         <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Created Events</h2>
         {% if events %}
             <table class="custom-table">
@@ -52,7 +68,7 @@
                         <tr>
                             <td>{{ event.name }}</td>
                             <td>{{ event.event_datetime.strftime('%d %b %Y') }} at {{ event.venue }}</td>
-                            <td><a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn btn-secondary">View Dashboard</a></td>
+                            <td><a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn btn-secondary" style="width: auto;">View Dashboard</a></td>
                         </tr>
                     {% endfor %}
                 </tbody>
@@ -61,6 +77,21 @@
             <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't created any events yet.</p>
             <a href="{{ url_for('create_event') }}" class="btn" style="display: block; width: fit-content; margin: 1rem auto 0;">Create Your First Event</a>
         {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- Security Settings Section -->
+    <div class="table-container">
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">Security Settings</h2>
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <p style="font-weight: 500; color: #374151;">Log Out on All Other Devices</p>
+                <p style="font-size: 0.9rem; color: #6b7280;">This will sign you out of all other active sessions on other computers or mobile devices.</p>
+            </div>
+            <form action="{{ url_for('logout_all_sessions') }}" method="post">
+                <button type="submit" class="btn" style="width: auto;">Log Out Everywhere</button>
+            </form>
+        </div>
     </div>
 </div>
 {% endblock %}
