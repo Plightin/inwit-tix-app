@@ -164,7 +164,7 @@ def is_password_strong(password):
     if not re.search(r"[0-9]", password):
         return False, "Password must contain a number."
     return True, ""
-    
+
 def generate_qr_code(ticket_uid):
     import qrcode
     qr = qrcode.QRCode(version=1, box_size=10, border=5)
@@ -304,30 +304,45 @@ def register_organizer():
         confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
         company_details = request.form.get('company_details')
+
         if not all([username, email, password, confirm_password, phone, company_details]):
             flash('All fields are required for organizer registration.', 'danger')
             return redirect(url_for('register_organizer'))
+
         if password != confirm_password:
             flash('Passwords do not match.', 'danger')
             return redirect(url_for('register_organizer'))
+
         is_strong, message = is_password_strong(password)
         if not is_strong:
             flash(message, 'danger')
             return redirect(url_for('register_organizer'))
+
         if User.query.filter((User.username == username) | (User.email == email)).first():
             flash('Username or email already exists.', 'danger')
             return redirect(url_for('register_organizer'))
-        if 'company_profile_doc' not in request.files or 'tax_clearance_doc' not in request.files or 'banking_details_doc' not in request.files:
+
+        profile_doc = request.files.get('company_profile_doc')
+        tax_doc = request.files.get('tax_clearance_doc')
+        banking_doc = request.files.get('banking_details_doc')
+
+        if not profile_doc or profile_doc.filename == '' or \
+           not tax_doc or tax_doc.filename == '' or \
+           not banking_doc or banking_doc.filename == '':
             flash('All document uploads are required.', 'danger')
             return redirect(url_for('register_organizer'))
+        
         new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
         db.session.add(new_user)
         db.session.commit()
-        new_user.company_profile_doc = save_document(request.files['company_profile_doc'], new_user.id)
-        new_user.tax_clearance_doc = save_document(request.files['tax_clearance_doc'], new_user.id)
-        new_user.banking_details_doc = save_document(request.files['banking_details_doc'], new_user.id)
+
+        new_user.company_profile_doc = save_document(profile_doc, new_user.id)
+        new_user.tax_clearance_doc = save_document(tax_doc, new_user.id)
+        new_user.banking_details_doc = save_document(banking_doc, new_user.id)
+        
         new_user.is_email_confirmed = False
         db.session.commit()
+        
         send_activation_email(new_user)
         flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
         return redirect(url_for('login'))
@@ -444,6 +459,7 @@ def resubmit_application():
         return redirect(url_for('profile'))
 
     return render_template('resubmit_application.html')
+
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
