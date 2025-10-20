@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Organizer Application Update</title>
+</head>
+<body style="margin: 0; padding: 0; font-family: sans-serif; background-color: #f4f7f6;">
+    <table width="100%" border="0" cellspacing="0" cellpadding="0" style="background-color: #f4f7f6;">
+        <tr>
+            <td align="center" style="padding: 20px;">
+                <table width="600" border="0" cellspacing="0" cellpadding="0" style="background-color: #ffffff; border-radius: 8px; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td align="center" style="padding: 20px; border-bottom: 1px solid #e0e0e0;">
+                            <img src="{{ logo_url }}" alt="Inwit Tix Logo" style="max-height: 40px;">
+                        </td>
+                    </tr>
+                    <!-- Body -->
+                    <tr>
+                        <td style="padding: 30px 40px;">
+                            {% if status == 'approved' %}
+                                <h1 style="font-size: 24px; color: #10b981; margin-top: 0;">Congratulations! You're Approved!</h1>
+                                <p style="color: #555; line-height: 1.6;">Hello {{ user.username }},</p>
+                                <p style="color: #555; line-height: 1.6;">
+                                    We are happy to inform you that your event organizer application for Inwit Tix has been approved. You can now log in to create and manage your events.
+                                </p>
+                                <div style="margin: 30px 0; text-align: center;">
+                                    <a href="{{ url_for('create_event', _external=True) }}" style="background-color: #ff9800; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Create Your First Event</a>
+                                </div>
+                            {% elif status == 'rejected' %}
+                                 <h1 style="font-size: 24px; color: #ef4444; margin-top: 0;">Application Update</h1>
+                                 <p style="color: #555; line-height: 1.6;">Hello {{ user.username }},</p>
+                                 <p style="color: #555; line-height: 1.6;">
+                                    Thank you for your application. After a review, we are unable to approve your organizer account at this time.
+                                 </p>
+                                 <p style="color: #555; line-height: 1.6;"><strong>Reason for denial:</strong><br>{{ reason }}</p>
+                                 <p style="color: #555; line-height: 1.6;">
+                                    You can update your application details and resubmit for another review by clicking the button below.
+                                 </p>
+                                 <div style="margin: 30px 0; text-align: center;">
+                                    <a href="{{ resubmit_link }}" style="background-color: #1a73e8; color: #ffffff; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">Update My Application</a>
+                                 </div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    <!-- Footer -->
+                    <tr>
+                        <td align="center" style="padding: 20px; background-color: #f9f9f9; border-top: 1px solid #e0e0e0;">
+                            <p style="color: #888; font-size: 12px; margin: 0;">&copy; {{ current_year }} Inwit Tix. All rights reserved.</p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
