@@ -34,7 +34,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'zip'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -54,11 +54,7 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
-# Initialize Serializer after SECRET_KEY is configured
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-
-# Initialize and configure Flask-Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
@@ -74,7 +70,6 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), nullable=False, default='buyer')
-    company_details = db.Column(db.Text, nullable=True)
     approval_status = db.Column(db.String(20), nullable=False, default='approved')
     rejection_reason = db.Column(db.Text, nullable=True)
     is_email_confirmed = db.Column(db.Boolean, nullable=False, default=False)
@@ -84,13 +79,12 @@ class User(db.Model, UserMixin):
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, role='buyer', phone_number=None, company_details=None):
+    def __init__(self, username, email, password, role='buyer', phone_number=None):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         self.role = role
         self.phone_number = phone_number
-        self.company_details = company_details
         if self.role == 'organizer':
             self.approval_status = 'pending'
 
@@ -98,13 +92,24 @@ class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    artwork = db.Column(db.String(100), nullable=False, default='default.jpg')
     venue = db.Column(db.String(150), nullable=False)
     event_datetime = db.Column(db.DateTime, nullable=False)
-    artwork = db.Column(db.String(100), nullable=False, default='default.jpg')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     price_ordinary = db.Column(db.Float, nullable=True)
     price_vip = db.Column(db.Float, nullable=True)
     price_vvip = db.Column(db.Float, nullable=True)
+    tickets_ordinary = db.Column(db.Integer, nullable=True)
+    tickets_vip = db.Column(db.Integer, nullable=True)
+    tickets_vvip = db.Column(db.Integer, nullable=True)
+    sales_start_date = db.Column(db.DateTime, nullable=True)
+    sales_end_date = db.Column(db.DateTime, nullable=True)
+    category = db.Column(db.String(50), nullable=True)
+    organizer_name = db.Column(db.String(100), nullable=True)
+    contact_info = db.Column(db.String(100), nullable=True)
+    external_link = db.Column(db.String(200), nullable=True)
+    purchase_limit = db.Column(db.Integer, nullable=True)
+    is_unlisted = db.Column(db.Boolean, default=False)
 
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -237,7 +242,8 @@ def send_organizer_status_email(user, status, reason=None):
 @app.route('/')
 def index():
     try:
-        events = Event.query.order_by(Event.event_datetime.asc()).all()
+        now = datetime.utcnow()
+        events = Event.query.filter(Event.is_unlisted == False, Event.event_datetime > now).order_by(Event.event_datetime.asc()).all()
     except Exception as e:
         print(f"Database error on index: {e}")
         events = []
@@ -467,10 +473,29 @@ def create_event():
         venue = request.form.get('venue')
         event_datetime_str = request.form.get('event_datetime')
         event_datetime = datetime.strptime(event_datetime_str, '%Y-%m-%dT%H:%M')
-        price_ordinary = request.form.get('price_ordinary', type=float) or 0
-        price_vip = request.form.get('price_vip', type=float) or 0
-        price_vvip = request.form.get('price_vvip', type=float) or 0
-        new_event = Event(name=name, description=description, venue=venue, event_datetime=event_datetime, artwork=unique_filename, creator=current_user, price_ordinary=price_ordinary, price_vip=price_vip, price_vvip=price_vvip)
+        price_ordinary = request.form.get('price_ordinary', type=float) or None
+        price_vip = request.form.get('price_vip', type=float) or None
+        price_vvip = request.form.get('price_vvip', type=float) or None
+        tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None
+        tickets_vip=request.form.get('tickets_vip', type=int) or None
+        tickets_vvip=request.form.get('tickets_vvip', type=int) or None
+        sales_start_date=datetime.strptime(request.form.get('sales_start_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_start_date') else None
+        sales_end_date=datetime.strptime(request.form.get('sales_end_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_end_date') else None
+        category=request.form.get('category')
+        organizer_name=request.form.get('organizer_name')
+        contact_info=request.form.get('contact_info')
+        external_link=request.form.get('external_link')
+        purchase_limit=request.form.get('purchase_limit', type=int) or None
+        is_unlisted='is_unlisted' in request.form
+        
+        new_event = Event(
+            name=name, description=description, venue=venue, event_datetime=event_datetime, artwork=unique_filename, creator=current_user,
+            price_ordinary=price_ordinary, price_vip=price_vip, price_vvip=price_vvip,
+            tickets_ordinary=tickets_ordinary, tickets_vip=tickets_vip, tickets_vvip=tickets_vvip,
+            sales_start_date=sales_start_date, sales_end_date=sales_end_date, category=category,
+            organizer_name=organizer_name, contact_info=contact_info, external_link=external_link,
+            purchase_limit=purchase_limit, is_unlisted=is_unlisted
+        )
         db.session.add(new_event)
         db.session.commit()
         flash('Event created successfully!', 'success')
@@ -480,7 +505,7 @@ def create_event():
 @app.route('/event/<int:event_id>')
 def event_detail(event_id):
     event = Event.query.get_or_404(event_id)
-    return render_template('event_detail.html', event=event)
+    return render_template('event_detail.html', event=event, datetime=datetime)
 
 @app.route('/purchase/<int:event_id>', methods=['POST'])
 @login_required
@@ -490,6 +515,25 @@ def purchase_ticket(event_id):
     if not ticket_type:
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
+    
+    now = datetime.utcnow()
+    if event.sales_start_date and now < event.sales_start_date:
+        flash('Ticket sales have not started for this event yet.', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+    if event.sales_end_date and now > event.sales_end_date:
+        flash('Ticket sales for this event have ended.', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+
+    ticket_count = Ticket.query.filter_by(event_id=event.id, ticket_type=ticket_type).count()
+    max_tickets = 0
+    if ticket_type == 'Ordinary': max_tickets = event.tickets_ordinary
+    elif ticket_type == 'VIP': max_tickets = event.tickets_vip
+    elif ticket_type == 'VVIP': max_tickets = event.tickets_vvip
+    
+    if max_tickets is not None and ticket_count >= max_tickets:
+        flash(f'Sorry, {ticket_type} tickets are sold out.', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+        
     price_paid = 0
     if ticket_type == 'Ordinary':
         price_paid = event.price_ordinary
