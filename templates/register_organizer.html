@@ -4,47 +4,45 @@
     <div class="form-container">
         <h1 class="form-title">Become an Event Organizer</h1>
         <p style="text-align: center; color: #6b7280; margin-bottom: 1.5rem;">Please provide your details. Your account will be reviewed before you can create events.</p>
+        <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem; text-align: left;">Fields marked with <span style="color: #ef4444;">*</span> are required.</p>
+        
         <form method="post" enctype="multipart/form-data">
             <div class="form-group">
-                <label for="username">Your Name or Company Name</label>
+                <label for="username">Your Name or Company Name <span style="color: #ef4444;">*</span></label>
                 <input type="text" name="username" id="username" required>
             </div>
             <div class="form-group">
-                <label for="email">Contact Email Address</label>
+                <label for="email">Contact Email Address <span style="color: #ef4444;">*</span></label>
                 <input type="email" name="email" id="email" required>
             </div>
             <div class="form-group">
-                <label for="phone_number">Contact Phone Number</label>
+                <label for="phone_number">Contact Phone Number <span style="color: #ef4444;">*</span></label>
                 <input type="tel" name="phone_number" id="phone_number" placeholder="e.g., 0977123456" required>
-            </div>
-            <div class="form-group">
-                <label for="company_details">Company Details & Motivation</label>
-                <textarea name="company_details" id="company_details" placeholder="Tell us a bit about your organization and the events you plan to host." required></textarea>
             </div>
 
             <h2 class="form-subtitle">Compliance Documents</h2>
             <p style="color: #6b7280; font-size: 0.9rem; margin-bottom: 1.5rem;">Please upload the following documents for verification (PDF or ZIP format).</p>
             
             <div class="form-group">
-                <label for="company_profile_doc">Company Profile</label>
+                <label for="company_profile_doc">Company Profile <span style="color: #ef4444;">*</span></label>
                 <input type="file" name="company_profile_doc" id="company_profile_doc" accept=".pdf,.zip" required>
             </div>
             <div class="form-group">
-                <label for="tax_clearance_doc">Tax Clearance Certificate</label>
+                <label for="tax_clearance_doc">Tax Clearance Certificate <span style="color: #ef4444;">*</span></label>
                 <input type="file" name="tax_clearance_doc" id="tax_clearance_doc" accept=".pdf,.zip" required>
             </div>
             <div class="form-group">
-                <label for="banking_details_doc">Banking Details (Proof of Account)</label>
+                <label for="banking_details_doc">Banking Details (Proof of Account) <span style="color: #ef4444;">*</span></label>
                 <input type="file" name="banking_details_doc" id="banking_details_doc" accept=".pdf,.zip" required>
             </div>
 
             <h2 class="form-subtitle">Account Security</h2>
             <div class="form-group">
-                <label for="password">Password</label>
+                <label for="password">Password <span style="color: #ef4444;">*</span></label>
                 <input type="password" name="password" id="password" required pattern="(?=.*\d)(?=.*[a-z])(?=.*[A-Z]).{8,}" title="Must contain at least one number and one uppercase and lowercase letter, and at least 8 or more characters">
             </div>
             <div class="form-group">
-                <label for="confirm_password">Confirm Password</label>
+                <label for="confirm_password">Confirm Password <span style="color: #ef4444;">*</span></label>
                 <input type="password" name="confirm_password" id="confirm_password" required>
             </div>
             
