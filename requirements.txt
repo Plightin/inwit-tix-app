@@ -10,3 +10,4 @@ python-dotenv
 WeasyPrint
 Flask-Mail
 Flask-Limiter
+pytz
