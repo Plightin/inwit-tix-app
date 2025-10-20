@@ -1,0 +1,38 @@
+{% extends 'layout.html' %}
+{% block title %}Audit Log{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <h1 class="form-title" style="text-align: left; margin-bottom: 0;">System Audit Log</h1>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn">&larr; Back to Admin</a>
+    </div>
+
+    <div class="table-container">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Timestamp</th>
+                    <th>User</th>
+                    <th>Action</th>
+                    <th>Details</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for log in logs %}
+                    <tr>
+                        <td style="white-space: nowrap;">{{ log.timestamp.strftime('%Y-%m-%d %H:%M:%S') }} UTC</td>
+                        <td>{{ log.user.username if log.user else 'System' }}</td>
+                        <td>{{ log.action }}</td>
+                        <td>{{ log.details }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="4" style="text-align: center;">No log entries found.</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
