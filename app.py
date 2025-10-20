@@ -34,7 +34,7 @@ app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf', 'zip'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
@@ -74,7 +74,6 @@ class User(db.Model, UserMixin):
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), nullable=False, default='buyer')
-    company_details = db.Column(db.Text, nullable=True)
     approval_status = db.Column(db.String(20), nullable=False, default='approved')
     rejection_reason = db.Column(db.Text, nullable=True)
     is_email_confirmed = db.Column(db.Boolean, nullable=False, default=False)
@@ -84,13 +83,12 @@ class User(db.Model, UserMixin):
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, role='buyer', phone_number=None, company_details=None):
+    def __init__(self, username, email, password, role='buyer', phone_number=None):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         self.role = role
         self.phone_number = phone_number
-        self.company_details = company_details
         if self.role == 'organizer':
             self.approval_status = 'pending'
 
@@ -303,10 +301,9 @@ def register_organizer():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
-        company_details = request.form.get('company_details')
 
-        if not all([username, email, password, confirm_password, phone, company_details]):
-            flash('All fields are required for organizer registration.', 'danger')
+        if not all([username, email, password, confirm_password, phone]):
+            flash('All text fields are required for organizer registration.', 'danger')
             return redirect(url_for('register_organizer'))
 
         if password != confirm_password:
@@ -332,7 +329,7 @@ def register_organizer():
             flash('All document uploads are required.', 'danger')
             return redirect(url_for('register_organizer'))
         
-        new_user = User(username=username, email=email, password=password, phone_number=phone, company_details=company_details, role='organizer')
+        new_user = User(username=username, email=email, password=password, phone_number=phone, role='organizer')
         db.session.add(new_user)
         db.session.commit()
 
@@ -438,7 +435,6 @@ def resubmit_application():
     
     if request.method == 'POST':
         current_user.phone_number = request.form.get('phone_number')
-        current_user.company_details = request.form.get('company_details')
         
         if 'company_profile_doc' in request.files:
             new_profile = save_document(request.files['company_profile_doc'], current_user.id)
@@ -459,7 +455,6 @@ def resubmit_application():
         return redirect(url_for('profile'))
 
     return render_template('resubmit_application.html')
-
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
