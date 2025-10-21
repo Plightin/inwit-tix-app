@@ -37,11 +37,9 @@ app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
-
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
-
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
@@ -50,21 +48,13 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
-# Initialize extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
-)
-
-# Set up timezone
+limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"], storage_uri="memory://")
 LUSAKA_TZ = pytz.timezone('Africa/Lusaka')
 
 # --- Database Models ---
@@ -82,6 +72,7 @@ class User(db.Model, UserMixin):
     tax_clearance_doc = db.Column(db.String(100), nullable=True)
     banking_details_doc = db.Column(db.String(100), nullable=True)
     session_id = db.Column(db.String(36), nullable=True)
+    is_suspended = db.Column(db.Boolean, nullable=False, default=False)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
@@ -116,6 +107,7 @@ class Event(db.Model):
     external_link = db.Column(db.String(200), nullable=True)
     purchase_limit = db.Column(db.Integer, nullable=False)
     is_unlisted = db.Column(db.Boolean, default=False)
+    is_featured = db.Column(db.Boolean, default=False)
 
 class Ticket(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -134,7 +126,6 @@ class AuditLog(db.Model):
     action = db.Column(db.String(100), nullable=False)
     details = db.Column(db.Text, nullable=True)
     user = db.relationship('User')
-
 
 # --- Admin & Authorization ---
 def admin_required(f):
@@ -441,6 +432,9 @@ def login():
             if not user.is_email_confirmed:
                 flash('Please activate your account first. Check your email for the confirmation link.', 'warning')
                 return redirect(url_for('login'))
+            if user.is_suspended:
+                flash('Your account has been suspended.', 'danger')
+                return redirect(url_for('login'))
             user.session_id = str(uuid.uuid4())
             db.session.commit()
             login_user(user, remember=True)
@@ -548,7 +542,7 @@ def create_event():
 @app.route('/event/<int:event_id>')
 def event_detail(event_id):
     event = Event.query.get_or_404(event_id)
-    return render_template('event_detail.html', event=event, datetime=datetime)
+    return render_template('event_detail.html', event=event, datetime=datetime, pytz=pytz)
 
 @app.route('/purchase/<int:event_id>', methods=['POST'])
 @login_required
@@ -660,7 +654,59 @@ def event_dashboard(event_id):
 @login_required
 @admin_required
 def admin_dashboard():
-    return render_template('admin_dashboard.html')
+    total_users = User.query.count()
+    total_events = Event.query.count()
+    total_tickets_sold = Ticket.query.count()
+    total_revenue = db.session.query(db.func.sum(Ticket.price_paid)).scalar() or 0
+    return render_template('admin_dashboard.html', total_users=total_users, total_events=total_events, total_tickets_sold=total_tickets_sold, total_revenue=total_revenue)
+
+@app.route('/admin/users')
+@login_required
+@admin_required
+def admin_users():
+    users = User.query.order_by(User.username).all()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/user/<int:user_id>/suspend', methods=['POST'])
+@login_required
+@admin_required
+def suspend_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_suspended = True
+    db.session.commit()
+    log_audit_event("suspend_user", f"Admin '{current_user.username}' suspended user '{user.username}'.", user=current_user)
+    flash(f"User '{user.username}' has been suspended.", 'warning')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/user/<int:user_id>/unsuspend', methods=['POST'])
+@login_required
+@admin_required
+def unsuspend_user(user_id):
+    user = User.query.get_or_404(user_id)
+    user.is_suspended = False
+    db.session.commit()
+    log_audit_event("unsuspend_user", f"Admin '{current_user.username}' unsuspended user '{user.username}'.", user=current_user)
+    flash(f"User '{user.username}' has been unsuspended.", 'success')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/events')
+@login_required
+@admin_required
+def admin_events():
+    events = Event.query.order_by(Event.event_datetime.desc()).all()
+    return render_template('admin_events.html', events=events)
+
+@app.route('/admin/event/<int:event_id>/toggle-feature', methods=['POST'])
+@login_required
+@admin_required
+def toggle_feature_event(event_id):
+    event = Event.query.get_or_404(event_id)
+    event.is_featured = not event.is_featured
+    db.session.commit()
+    status = "featured" if event.is_featured else "un-featured"
+    log_audit_event("toggle_feature", f"Admin '{current_user.username}' {status} event '{event.name}'.", user=current_user)
+    flash(f"Event '{event.name}' has been {status}.", 'success')
+    return redirect(url_for('admin_events'))
 
 @app.route('/admin/approvals')
 @login_required
