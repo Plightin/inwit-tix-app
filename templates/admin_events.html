@@ -1,0 +1,48 @@
+{% extends 'layout.html' %}
+{% block title %}Event Management{% endblock %}
+
+{% block content %}
+<div class="main-container">
+    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
+        <h1 class="form-title" style="text-align: left; margin-bottom: 0;">Event Management</h1>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn">&larr; Back to Admin</a>
+    </div>
+
+    <div class="table-container">
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Event Name</th>
+                    <th>Organizer</th>
+                    <th>Date</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                <tr>
+                    <td><a href="{{ url_for('event_detail', event_id=event.id) }}">{{ event.name }}</a></td>
+                    <td>{{ event.creator.username }}</td>
+                    <td>{{ event.event_datetime|to_local_time(fmt='%d %b %Y') }}</td>
+                    <td>
+                        {% if event.is_featured %}
+                            <span class="status-badge status-active">Featured</span>
+                        {% else %}
+                             <span class="status-badge status-pending">Standard</span>
+                        {% endif %}
+                    </td>
+                    <td>
+                        <form action="{{ url_for('toggle_feature_event', event_id=event.id) }}" method="post">
+                            <button type="submit" class="btn btn-secondary" style="width: auto; font-size: 0.8rem; padding: 6px 10px;">
+                                {% if event.is_featured %}Un-Feature{% else %}Feature{% endif %}
+                            </button>
+                        </form>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
