@@ -356,7 +356,6 @@ nav ul li a:hover {
 .alert-warning { color: #856404; background-color: #fff3cd; border-color: #ffeeba;}
 .alert-info { color: #0c5460; background-color: #d1ecf1; border-color: #bee5eb;}
 
-
 /* Dashboard & Profile Specific Styles */
 .table-container {
     background-color: white;
@@ -494,3 +493,46 @@ nav ul li a:hover {
     border-color: #fecaca;
     color: #991b1b;
 }
+
+/* Styles for Admin Dashboard */
+.admin-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+}
+.stat-label {
+    color: #6b7280; 
+    font-size: 0.875rem;
+}
+.stat-value {
+    font-size: 1.875rem;
+    font-weight: 700;
+    color: #111827;
+}
+.admin-links {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+.admin-links li a {
+    display: block;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #e5e7eb;
+    color: #1a73e8;
+    text-decoration: none;
+    font-weight: 500;
+}
+.admin-links li:last-child a {
+    border-bottom: none;
+}
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 9999px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+}
+.status-active { background-color: #d1fae5; color: #065f46; }
+.status-pending { background-color: #fef3c7; color: #92400e; }
+.status-suspended { background-color: #fee2e2; color: #991b1b; }
