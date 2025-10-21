@@ -36,7 +36,7 @@
                     <li><a href="{{ url_for('login') }}">Login</a></li>
                     <li><a href="{{ url_for('register') }}">Register</a></li>
                 {% endif %}
-                <li><a href="{{ url_for('help_page') }}">Help</a></li>
+                 <li><a href="{{ url_for('help_page') }}">Help</a></li>
             </ul>
         </div>
     </nav>
@@ -53,7 +53,6 @@
         {% block content %}{% endblock %}
     </main>
     <footer class="footer">
-        <!-- UPDATED: Removed the Help link from the footer -->
         <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
