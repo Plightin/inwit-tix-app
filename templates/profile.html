@@ -83,13 +83,22 @@
     <!-- Security Settings Section -->
     <div class="table-container">
         <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">Security Settings</h2>
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        
+        <div style="padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
+            <div>
+                <p style="font-weight: 500; color: #374151;">Change Your Password</p>
+                <p style="font-size: 0.9rem; color: #6b7280;">It's a good idea to use a strong password you don't use elsewhere.</p>
+            </div>
+            <a href="{{ url_for('change_password') }}" class="btn" style="width: auto;">Change Password</a>
+        </div>
+
+        <div style="padding: 0.75rem 0; display: flex; justify-content: space-between; align-items: center;">
             <div>
                 <p style="font-weight: 500; color: #374151;">Log Out on All Other Devices</p>
                 <p style="font-size: 0.9rem; color: #6b7280;">This will sign you out of all other active sessions on other computers or mobile devices.</p>
             </div>
             <form action="{{ url_for('logout_all_sessions') }}" method="post">
-                <button type="submit" class="btn" style="width: auto;">Log Out Everywhere</button>
+                <button type="submit" class="btn" style="width: auto; background-color: #6b7280;">Log Out Everywhere</button>
             </form>
         </div>
     </div>
