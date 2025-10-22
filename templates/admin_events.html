@@ -5,7 +5,7 @@
 <div class="main-container">
     <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
         <h1 class="form-title" style="text-align: left; margin-bottom: 0;">Event Management</h1>
-        <a href="{{ url_for('admin_dashboard') }}" class="btn">&larr; Back to Admin</a>
+        <a href="{{ url_for('admin_dashboard') }}" class="btn" style="width: auto;">&larr; Back to Admin</a>
     </div>
 
     <div class="table-container">
@@ -22,7 +22,7 @@
             <tbody>
                 {% for event in events %}
                 <tr>
-                    <td><a href="{{ url_for('event_detail', event_id=event.id) }}">{{ event.name }}</a></td>
+                    <td><a href="{{ url_for('event_detail', event_id=event.id) }}" style="color: #1a73e8; font-weight: 500;">{{ event.name }}</a></td>
                     <td>{{ event.creator.username }}</td>
                     <td>{{ event.event_datetime|to_local_time(fmt='%d %b %Y') }}</td>
                     <td>
