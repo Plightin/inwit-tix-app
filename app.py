@@ -380,7 +380,6 @@ def activate_account(token):
         email = serializer.loads(token, salt='email-confirm', max_age=3600) # Token valid for 1 hour
     except:
         flash('The confirmation link is invalid or has expired. Please request a new one.', 'danger')
-        # UPDATED: Redirect to the new resend page
         return redirect(url_for('resend_activation'))
     user = User.query.filter_by(email=email).first_or_404()
     if user.is_email_confirmed:
@@ -391,7 +390,6 @@ def activate_account(token):
         flash('Your account has been activated! You can now log in.', 'success')
     return redirect(url_for('login'))
 
-# NEW: Route to resend the activation email
 @app.route('/resend-activation', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
 def resend_activation():
@@ -400,7 +398,6 @@ def resend_activation():
         user = User.query.filter_by(email=email).first()
         if user and not user.is_email_confirmed:
             send_activation_email(user)
-        # We show the same message whether the user exists or not to prevent email enumeration
         flash('If an account with that email address exists and is unconfirmed, a new activation link has been sent.', 'info')
         return redirect(url_for('login'))
     return render_template('resend_activation.html')
