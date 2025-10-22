@@ -124,8 +124,15 @@ class Ticket(db.Model):
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False, default=0.0)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # The owner
     event = db.relationship('Event', backref='tickets')
+    
+    # NEW: Fields for ticket gifting/transfer
+    status = db.Column(db.String(20), nullable=False, default='active') # active, pending_transfer
+    recipient_name = db.Column(db.String(100), nullable=True)
+    recipient_email = db.Column(db.String(120), nullable=True)
+    transfer_token = db.Column(db.String(100), nullable=True, unique=True)
+
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -266,6 +273,22 @@ def send_organizer_status_email(user, status, reason=None):
         mail.send(msg)
     except Exception as e:
         print(f"Error sending organizer status email: {e}")
+        
+def send_gift_email(ticket, recipient_name, recipient_email):
+    try:
+        token = serializer.dumps(ticket.id, salt='ticket-claim')
+        claim_link = url_for('claim_ticket', token=token, _external=True)
+        logo_url = url_for('static', filename='logo.png', _external=True)
+        email_html = render_template('gift_notification_email.html', 
+                                     recipient_name=recipient_name, 
+                                     buyer_name=ticket.owner.username, 
+                                     event_name=ticket.event.name,
+                                     claim_link=claim_link, 
+                                     logo_url=logo_url)
+        msg = Message(subject=f"{ticket.owner.username} sent you a ticket!", recipients=[recipient_email], html=email_html)
+        mail.send(msg)
+    except Exception as e:
+        print(f"Error sending gift notification email: {e}")
 
 def log_audit_event(action, details, user=None):
     user_id = user.id if user else None
@@ -377,7 +400,7 @@ def register_organizer():
 @app.route('/activate/<token>')
 def activate_account(token):
     try:
-        email = serializer.loads(token, salt='email-confirm', max_age=3600) # Token valid for 1 hour
+        email = serializer.loads(token, salt='email-confirm', max_age=3600)
     except:
         flash('The confirmation link is invalid or has expired. Please request a new one.', 'danger')
         return redirect(url_for('resend_activation'))
@@ -488,7 +511,6 @@ def logout_all_sessions():
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
-# NEW: Route for changing password from profile
 @app.route('/profile/change-password', methods=['GET', 'POST'])
 @login_required
 def change_password():
@@ -496,29 +518,23 @@ def change_password():
         old_password = request.form.get('old_password')
         new_password = request.form.get('new_password')
         confirm_new_password = request.form.get('confirm_new_password')
-
         if not bcrypt.check_password_hash(current_user.password_hash, old_password):
             flash('Your old password was incorrect. Please try again.', 'danger')
             return redirect(url_for('change_password'))
-        
         if new_password != confirm_new_password:
             flash('New passwords do not match.', 'danger')
             return redirect(url_for('change_password'))
-        
         is_strong, message = is_password_strong(new_password)
         if not is_strong:
             flash(message, 'danger')
             return redirect(url_for('change_password'))
-
         current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
         current_user.session_id = str(uuid.uuid4())
         db.session.commit()
         session['session_id'] = current_user.session_id
-        
         log_audit_event("change_password", f"User '{current_user.username}' changed their password.", user=current_user)
         flash('Your password has been successfully updated.', 'success')
         return redirect(url_for('profile'))
-
     return render_template('change_password.html')
 
 @app.route('/resubmit-application', methods=['GET', 'POST'])
@@ -602,9 +618,18 @@ def event_detail(event_id):
 def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
+    is_gift = 'is_gift' in request.form
+    recipient_name = request.form.get('recipient_name')
+    recipient_email = request.form.get('recipient_email')
+    
     if not ticket_type:
         flash('Please select a ticket type.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
+        
+    if is_gift and (not recipient_name or not recipient_email):
+        flash('Recipient name and email are required to gift a ticket.', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+
     now = datetime.now(pytz.utc)
     if event.sales_start_date and now < event.sales_start_date.replace(tzinfo=pytz.utc):
         flash('Ticket sales have not started for this event yet.', 'danger')
@@ -612,6 +637,7 @@ def purchase_ticket(event_id):
     if event.sales_end_date and now > event.sales_end_date.replace(tzinfo=pytz.utc):
         flash('Ticket sales for this event have ended.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
+        
     ticket_count = Ticket.query.filter_by(event_id=event.id, ticket_type=ticket_type).count()
     max_tickets = 0
     if ticket_type == 'Ordinary': max_tickets = event.tickets_ordinary
@@ -620,18 +646,62 @@ def purchase_ticket(event_id):
     if max_tickets is not None and ticket_count >= max_tickets:
         flash(f'Sorry, {ticket_type} tickets are sold out.', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
+        
     price_paid = 0
-    if ticket_type == 'Ordinary':
-        price_paid = event.price_ordinary
-    elif ticket_type == 'VIP':
-        price_paid = event.price_vip
-    elif ticket_type == 'VVIP':
-        price_paid = event.price_vvip
-    new_ticket = Ticket(owner=current_user, event=event, ticket_type=ticket_type, price_paid=price_paid)
-    db.session.add(new_ticket)
-    db.session.commit()
-    create_and_email_ticket(new_ticket)
+    if ticket_type == 'Ordinary': price_paid = event.price_ordinary
+    elif ticket_type == 'VIP': price_paid = event.price_vip
+    elif ticket_type == 'VVIP': price_paid = event.price_vvip
+    
+    new_ticket = Ticket(
+        owner=current_user, 
+        event=event, 
+        ticket_type=ticket_type, 
+        price_paid=price_paid
+    )
+
+    if is_gift:
+        new_ticket.status = 'pending_transfer'
+        new_ticket.recipient_name = recipient_name
+        new_ticket.recipient_email = recipient_email
+        new_ticket.transfer_token = serializer.dumps(str(uuid.uuid4()), salt='ticket-claim')
+        db.session.add(new_ticket)
+        db.session.commit()
+        send_gift_email(new_ticket, recipient_name, recipient_email)
+        flash(f'Ticket has been purchased and a gift email sent to {recipient_email}.', 'success')
+    else:
+        new_ticket.status = 'active'
+        db.session.add(new_ticket)
+        db.session.commit()
+        create_and_email_ticket(new_ticket)
+        
     return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
+
+@app.route('/claim-ticket/<token>')
+@login_required
+def claim_ticket(token):
+    try:
+        # We don't need to check max_age, a claim token should be valid indefinitely
+        ticket_id_str = serializer.loads(token, salt='ticket-claim')
+    except:
+        flash('This gift link is invalid or has expired.', 'danger')
+        return redirect(url_for('index'))
+
+    ticket = Ticket.query.filter_by(transfer_token=token).first_or_404()
+
+    if ticket.recipient_email != current_user.email:
+        flash('This ticket was gifted to a different email address. Please log in with the correct account.', 'danger')
+        return redirect(url_for('index'))
+        
+    ticket.user_id = current_user.id
+    ticket.status = 'active'
+    ticket.recipient_name = None
+    ticket.recipient_email = None
+    ticket.transfer_token = None
+    db.session.commit()
+    
+    log_audit_event("claim_ticket", f"User '{current_user.username}' claimed ticket {ticket.id}.", user=current_user)
+    flash('Ticket successfully claimed! It has been added to your profile.', 'success')
+    return redirect(url_for('view_ticket', ticket_id=ticket.id))
 
 @app.route('/ticket/<int:ticket_id>')
 @login_required
@@ -696,7 +766,7 @@ def event_dashboard(event_id):
     tickets = event.tickets
     total_tickets_sold = len(tickets)
     total_revenue = sum(ticket.price_paid for ticket in tickets)
-    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue':0}}
+    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue': 0}}
     for ticket in tickets:
         if ticket.ticket_type in sales_by_type:
             sales_by_type[ticket.ticket_type]['count'] += 1
