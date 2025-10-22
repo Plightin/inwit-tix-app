@@ -3,6 +3,21 @@
 {% block content %}
     <div class="form-container">
         <h1 class="form-title">Login to Your Account</h1>
+        
+        <!-- Check for the specific unconfirmed email flash message -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    {% if 'activate your account' in message %}
+                        <div class="alert alert-warning">
+                            {{ message }} 
+                            <a href="{{ url_for('resend_activation') }}" style="font-weight: bold; text-decoration: underline;">Resend activation link?</a>
+                        </div>
+                    {% endif %}
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
         <form method="post">
             <div class="form-group">
                 <label for="username">Username</label>
