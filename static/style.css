@@ -84,10 +84,25 @@ nav ul li a:hover {
     display: flex;
     flex-direction: column;
     transition: transform 0.2s, box-shadow 0.2s;
+    position: relative; /* Added for featured badge */
 }
 .card:hover {
     transform: translateY(-5px);
     box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+}
+/* Featured Badge */
+.featured-badge {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    background-color: #ff9800;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 0.25rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    z-index: 10;
 }
 .event-image-container {
     width: 100%;
@@ -412,11 +427,6 @@ nav ul li a:hover {
     align-items: center;
     justify-content: flex-end;
 }
-.share-label {
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: #6b7280;
-}
 .share-buttons {
     display: flex;
     gap: 0.5rem;
@@ -510,6 +520,12 @@ nav ul li a:hover {
     font-weight: 700;
     color: #111827;
 }
+.table-title {
+    font-size: 1.25rem; 
+    font-weight: 700; 
+    color: #1f2937; 
+    margin-bottom: 1rem;
+}
 .admin-links {
     list-style: none;
     padding: 0;
@@ -522,6 +538,9 @@ nav ul li a:hover {
     color: #1a73e8;
     text-decoration: none;
     font-weight: 500;
+    /* UPDATED: Align text to the right */
+    text-align: right;
+    padding-right: 0.5rem; /* Add some padding on the right */
 }
 .admin-links li:last-child a {
     border-bottom: none;
