@@ -16,11 +16,11 @@ from weasyprint import HTML, CSS
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
-# UPDATED: Added the missing import for the token serializer
 from itsdangerous import URLSafeTimedSerializer
 import click
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+import pytz
 
 # --- App Configuration ---
 load_dotenv()
@@ -56,19 +56,13 @@ bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-
-# Initialize Serializer after SECRET_KEY is configured
-# This will now work because the import has been added
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-
-# Initialize and configure Flask-Limiter
 limiter = Limiter(
     get_remote_address,
     app=app,
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
-
 LUSAKA_TZ = pytz.timezone('Africa/Lusaka')
 
 # --- Database Models ---
@@ -385,8 +379,8 @@ def activate_account(token):
     try:
         email = serializer.loads(token, salt='email-confirm', max_age=3600)
     except:
-        flash('The confirmation link is invalid or has expired.', 'danger')
-        return redirect(url_for('login'))
+        flash('The confirmation link is invalid or has expired. Please request a new one.', 'danger')
+        return redirect(url_for('resend_activation'))
     user = User.query.filter_by(email=email).first_or_404()
     if user.is_email_confirmed:
         flash('Account already confirmed. Please log in.', 'success')
@@ -395,6 +389,18 @@ def activate_account(token):
         db.session.commit()
         flash('Your account has been activated! You can now log in.', 'success')
     return redirect(url_for('login'))
+
+@app.route('/resend-activation', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
+def resend_activation():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user and not user.is_email_confirmed:
+            send_activation_email(user)
+        flash('If an account with that email address exists and is unconfirmed, a new activation link has been sent.', 'info')
+        return redirect(url_for('login'))
+    return render_template('resend_activation.html')
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 @limiter.limit("5 per minute")
