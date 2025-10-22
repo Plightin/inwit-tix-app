@@ -16,11 +16,11 @@ from weasyprint import HTML, CSS
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 from functools import wraps
+# UPDATED: Added the missing import for the token serializer
 from itsdangerous import URLSafeTimedSerializer
 import click
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
-import pytz
 
 # --- App Configuration ---
 load_dotenv()
@@ -37,9 +37,11 @@ app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+
 app.config['SESSION_COOKIE_SECURE'] = True
 app.config['SESSION_COOKIE_HTTPONLY'] = True
 app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
@@ -48,13 +50,25 @@ app.config['MAIL_USE_TLS'] = True
 app.config['MAIL_USE_SSL'] = False
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
 
+# Initialize extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# Initialize Serializer after SECRET_KEY is configured
+# This will now work because the import has been added
 serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-limiter = Limiter(get_remote_address, app=app, default_limits=["200 per day", "50 per hour"], storage_uri="memory://")
+
+# Initialize and configure Flask-Limiter
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
+
 LUSAKA_TZ = pytz.timezone('Africa/Lusaka')
 
 # --- Database Models ---
@@ -270,7 +284,7 @@ def log_audit_event(action, details, user=None):
 def index():
     try:
         now = datetime.now(pytz.utc)
-        events = Event.query.filter(Event.is_unlisted == False, Event.event_datetime > now).order_by(Event.event_datetime.asc()).all()
+        events = Event.query.filter(Event.is_unlisted == False, Event.event_datetime > now).order_by(Event.is_featured.desc(), Event.event_datetime.asc()).all()
     except Exception as e:
         print(f"Database error on index: {e}")
         events = []
