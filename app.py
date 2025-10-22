@@ -488,6 +488,39 @@ def logout_all_sessions():
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
+# NEW: Route for changing password from profile
+@app.route('/profile/change-password', methods=['GET', 'POST'])
+@login_required
+def change_password():
+    if request.method == 'POST':
+        old_password = request.form.get('old_password')
+        new_password = request.form.get('new_password')
+        confirm_new_password = request.form.get('confirm_new_password')
+
+        if not bcrypt.check_password_hash(current_user.password_hash, old_password):
+            flash('Your old password was incorrect. Please try again.', 'danger')
+            return redirect(url_for('change_password'))
+        
+        if new_password != confirm_new_password:
+            flash('New passwords do not match.', 'danger')
+            return redirect(url_for('change_password'))
+        
+        is_strong, message = is_password_strong(new_password)
+        if not is_strong:
+            flash(message, 'danger')
+            return redirect(url_for('change_password'))
+
+        current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+        current_user.session_id = str(uuid.uuid4())
+        db.session.commit()
+        session['session_id'] = current_user.session_id
+        
+        log_audit_event("change_password", f"User '{current_user.username}' changed their password.", user=current_user)
+        flash('Your password has been successfully updated.', 'success')
+        return redirect(url_for('profile'))
+
+    return render_template('change_password.html')
+
 @app.route('/resubmit-application', methods=['GET', 'POST'])
 @login_required
 def resubmit_application():
@@ -663,7 +696,7 @@ def event_dashboard(event_id):
     tickets = event.tickets
     total_tickets_sold = len(tickets)
     total_revenue = sum(ticket.price_paid for ticket in tickets)
-    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue': 0}}
+    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue':0}}
     for ticket in tickets:
         if ticket.ticket_type in sales_by_type:
             sales_by_type[ticket.ticket_type]['count'] += 1
