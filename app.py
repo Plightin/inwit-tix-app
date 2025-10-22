@@ -124,15 +124,12 @@ class Ticket(db.Model):
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False, default=0.0)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # The owner
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
-    
-    # NEW: Fields for ticket gifting/transfer
-    status = db.Column(db.String(20), nullable=False, default='active') # active, pending_transfer
+    status = db.Column(db.String(20), nullable=False, default='active')
     recipient_name = db.Column(db.String(100), nullable=True)
     recipient_email = db.Column(db.String(120), nullable=True)
     transfer_token = db.Column(db.String(100), nullable=True, unique=True)
-
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
