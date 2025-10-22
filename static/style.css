@@ -505,21 +505,20 @@ nav ul li a:hover {
 }
 
 /* Styles for Admin Dashboard */
-.admin-grid {
+.admin-main-content {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    grid-template-columns: 2fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+
+.admin-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 1.5rem;
-    margin-bottom: 2rem;
+    align-content: start;
 }
-.stat-label {
-    color: #6b7280; 
-    font-size: 0.875rem;
-}
-.stat-value {
-    font-size: 1.875rem;
-    font-weight: 700;
-    color: #111827;
-}
+
 .table-title {
     font-size: 1.25rem; 
     font-weight: 700; 
@@ -533,14 +532,12 @@ nav ul li a:hover {
 }
 .admin-links li a {
     display: block;
-    padding: 0.75rem 0;
+    padding: 0.75rem 0.5rem;
     border-bottom: 1px solid #e5e7eb;
     color: #1a73e8;
     text-decoration: none;
     font-weight: 500;
-    /* UPDATED: Align text to the right */
-    text-align: right;
-    padding-right: 0.5rem; /* Add some padding on the right */
+    text-align: left;
 }
 .admin-links li:last-child a {
     border-bottom: none;
