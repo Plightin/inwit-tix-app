@@ -47,7 +47,7 @@
         {% elif event.sales_start_date and now < event.sales_start_date.replace(tzinfo=pytz.utc) %}
              <div class="alert alert-info">Ticket sales begin on {{ event.sales_start_date|to_local_time(fmt='%d %b %Y at %I:%M %p') }}.</div>
         {% elif current_user.is_authenticated %}
-            <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post" style="max-width: 400px;">
+            <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="post" style="max-width: 400px;" id="purchase-form">
                 <div class="ticket-options-container">
                     {% if event.price_ordinary is not none and (event.tickets_ordinary is none or event.tickets_ordinary > 0) %}
                     <label class="ticket-option-label">
@@ -77,6 +77,26 @@
                     </label>
                     {% endif %}
                 </div>
+
+                <!-- Gifting Section -->
+                <div class="form-group" style="margin-top: 1.5rem;">
+                    <label for="is_gift" style="display: flex; align-items: center; gap: 10px; font-weight: 500;">
+                        <input type="checkbox" id="is_gift" name="is_gift" style="width: auto;" onchange="toggleGiftFields()">
+                        Buy for a friend? (Gift this ticket)
+                    </label>
+                </div>
+                
+                <div id="gift-fields" style="display: none; margin-top: 1rem; padding: 1rem; background-color: #f9fafb; border-radius: 0.5rem;">
+                    <div class="form-group">
+                        <label for="recipient_name">Recipient's Name</label>
+                        <input type="text" name="recipient_name" id="recipient_name" class="form-group" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                    </div>
+                    <div class="form-group">
+                        <label for="recipient_email">Recipient's Email</label>
+                        <input type="email" name="recipient_email" id="recipient_email" class="form-group" style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 0.5rem;">
+                    </div>
+                </div>
+
                 <button type="submit" class="btn" style="width: 100%; margin-top: 1rem;">Buy Ticket</button>
             </form>
         {% else %}
@@ -87,4 +107,23 @@
         {% endif %}
     </div>
 </div>
+
+<script>
+    function toggleGiftFields() {
+        const checkbox = document.getElementById('is_gift');
+        const giftFields = document.getElementById('gift-fields');
+        const nameInput = document.getElementById('recipient_name');
+        const emailInput = document.getElementById('recipient_email');
+
+        if (checkbox.checked) {
+            giftFields.style.display = 'block';
+            nameInput.required = true;
+            emailInput.required = true;
+        } else {
+            giftFields.style.display = 'none';
+            nameInput.required = false;
+            emailInput.required = false;
+        }
+    }
+</script>
 {% endblock %}
