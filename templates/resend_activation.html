@@ -1,0 +1,18 @@
+{% extends 'layout.html' %}
+{% block title %}Resend Activation Email{% endblock %}
+{% block content %}
+    <div class="form-container">
+        <h1 class="form-title">Resend Activation Email</h1>
+        <p style="text-align: center; color: #6b7280; margin-bottom: 1.5rem;">Enter your email address and if an unconfirmed account exists, we will send you a new activation link. The link is valid for one hour.</p>
+        <form method="post">
+            <div class="form-group">
+                <label for="email">Email Address</label>
+                <input type="email" name="email" id="email" required>
+            </div>
+            <button type="submit" class="btn" style="margin-top: 1rem;">Resend Link</button>
+        </form>
+        <p class="form-text">
+            Remembered your password? <a href="{{ url_for('login') }}">Back to Login</a>
+        </p>
+    </div>
+{% endblock %}
