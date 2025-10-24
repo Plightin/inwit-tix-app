@@ -273,9 +273,8 @@ def send_organizer_status_email(user, status, reason=None):
         
 def send_gift_email(ticket, recipient_name, recipient_email):
     try:
-        # UPDATED: Create token from ticket.id, not a new UUID
-        token = serializer.dumps(ticket.id, salt='ticket-claim')
-        claim_link = url_for('claim_ticket', token=token, _external=True)
+        # UPDATED: Use the token already stored on the ticket
+        claim_link = url_for('claim_ticket', token=ticket.transfer_token, _external=True)
         logo_url = url_for('static', filename='logo.png', _external=True)
         email_html = render_template('gift_notification_email.html', 
                                      recipient_name=recipient_name, 
@@ -663,7 +662,7 @@ def purchase_ticket(event_id):
         new_ticket.recipient_email = recipient_email
         db.session.add(new_ticket)
         db.session.commit()
-        # Create token based on ticket ID *after* it has been committed
+        # UPDATED: Create token from ticket.id *after* it has been committed
         new_ticket.transfer_token = serializer.dumps(new_ticket.id, salt='ticket-claim')
         db.session.commit()
         send_gift_email(new_ticket, recipient_name, recipient_email)
@@ -680,15 +679,17 @@ def purchase_ticket(event_id):
 @login_required
 def claim_ticket(token):
     try:
-        ticket_id = serializer.loads(token, salt='ticket-claim', max_age=86400) # 1 day validity
+        # UPDATED: Validate the token and set a 1-day expiration
+        ticket_id = serializer.loads(token, salt='ticket-claim', max_age=86400)
     except:
         flash('This gift link is invalid or has expired.', 'danger')
         return redirect(url_for('index'))
 
+    # UPDATED: Find ticket by ID (from token) and check token field
     ticket = Ticket.query.get_or_404(ticket_id)
-    
-    if ticket.status != 'pending_transfer':
-        flash('This ticket has already been claimed.', 'info')
+
+    if ticket.transfer_token != token or ticket.status != 'pending_transfer':
+        flash('This ticket has already been claimed or the link is invalid.', 'info')
         return redirect(url_for('login'))
 
     if ticket.recipient_email != current_user.email:
@@ -699,7 +700,7 @@ def claim_ticket(token):
     ticket.status = 'active'
     ticket.recipient_name = None
     ticket.recipient_email = None
-    ticket.transfer_token = None
+    ticket.transfer_token = None # Nullify the token so it can't be used again
     db.session.commit()
     
     log_audit_event("claim_ticket", f"User '{current_user.username}' claimed ticket {ticket.id}.", user=current_user)
