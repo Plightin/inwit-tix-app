@@ -124,12 +124,12 @@ class Ticket(db.Model):
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False, default=0.0)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # The owner
     event = db.relationship('Event', backref='tickets')
-    status = db.Column(db.String(20), nullable=False, default='active')
+    status = db.Column(db.String(20), nullable=False, default='active') # active, pending_transfer
     recipient_name = db.Column(db.String(100), nullable=True)
     recipient_email = db.Column(db.String(120), nullable=True)
-    transfer_token = db.Column(db.String(100), nullable=True, unique=True)
+    transfer_token = db.Column(db.String(100), nullable=True, unique=True) # Will be NULL unless a gift email fails to send
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -273,6 +273,7 @@ def send_organizer_status_email(user, status, reason=None):
         
 def send_gift_email(ticket, recipient_name, recipient_email):
     try:
+        # UPDATED: Create token from ticket.id, not a new UUID
         token = serializer.dumps(ticket.id, salt='ticket-claim')
         claim_link = url_for('claim_ticket', token=token, _external=True)
         logo_url = url_for('static', filename='logo.png', _external=True)
@@ -660,8 +661,10 @@ def purchase_ticket(event_id):
         new_ticket.status = 'pending_transfer'
         new_ticket.recipient_name = recipient_name
         new_ticket.recipient_email = recipient_email
-        new_ticket.transfer_token = serializer.dumps(str(uuid.uuid4()), salt='ticket-claim')
         db.session.add(new_ticket)
+        db.session.commit()
+        # Create token based on ticket ID *after* it has been committed
+        new_ticket.transfer_token = serializer.dumps(new_ticket.id, salt='ticket-claim')
         db.session.commit()
         send_gift_email(new_ticket, recipient_name, recipient_email)
         flash(f'Ticket has been purchased and a gift email sent to {recipient_email}.', 'success')
@@ -677,13 +680,16 @@ def purchase_ticket(event_id):
 @login_required
 def claim_ticket(token):
     try:
-        # We don't need to check max_age, a claim token should be valid indefinitely
-        ticket_id_str = serializer.loads(token, salt='ticket-claim')
+        ticket_id = serializer.loads(token, salt='ticket-claim', max_age=86400) # 1 day validity
     except:
         flash('This gift link is invalid or has expired.', 'danger')
         return redirect(url_for('index'))
 
-    ticket = Ticket.query.filter_by(transfer_token=token).first_or_404()
+    ticket = Ticket.query.get_or_404(ticket_id)
+    
+    if ticket.status != 'pending_transfer':
+        flash('This ticket has already been claimed.', 'info')
+        return redirect(url_for('login'))
 
     if ticket.recipient_email != current_user.email:
         flash('This ticket was gifted to a different email address. Please log in with the correct account.', 'danger')
