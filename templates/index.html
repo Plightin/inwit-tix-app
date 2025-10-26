@@ -2,6 +2,28 @@
 {% block title %}Upcoming Events{% endblock %}
 {% block content %}
     <h1 style="font-size: 2.5rem; font-weight: 800; color: #1f2937; margin-bottom: 2rem; text-align: center;">Upcoming Events</h1>
+
+    <!-- NEW: Search and Filter Bar -->
+    <form method="GET" action="{{ url_for('index') }}" class="search-bar">
+        <div class="search-group">
+            <label for="q">Search by Name or Venue</label>
+            <input type="search" name="q" id="q" placeholder="e.g., Watch Party or Piazza" value="{{ query or '' }}">
+        </div>
+        <div class="search-group">
+            <label for="category">Filter by Category</label>
+            <select id="category" name="category">
+                <option value="">All Categories</option>
+                <option value="Music" {% if category == 'Music' %}selected{% endif %}>Music</option>
+                <option value="Conference" {% if category == 'Conference' %}selected{% endif %}>Conference</option>
+                <option value="Sports" {% if category == 'Sports' %}selected{% endif %}>Sports</option>
+                <option value="Festival" {% if category == 'Festival' %}selected{% endif %}>Festival</option>
+                <option value="Theater" {% if category == 'Theater' %}selected{% endif %}>Theater</option>
+                <option value="Other" {% if category == 'Other' %}selected{% endif %}>Other</option>
+            </select>
+        </div>
+        <button type="submit" class="btn btn-secondary" style="width: auto; align-self: end;">Search</button>
+    </form>
+
     <div class="event-grid">
         {% for event in events %}
             <div class="card {% if event.is_featured %}featured-event{% endif %}">
@@ -46,11 +68,10 @@
                 </div>
             </div>
         {% else %}
-            <div class="col-span-full text-center py-12 bg-white rounded-lg shadow">
-                <p class="text-gray-500">No events have been created yet. Be the first!</p>
-                {% if current_user.is_authenticated and current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
-                    <a href="{{ url_for('create_event') }}" class="btn mt-4" style="width: auto;">Create an Event</a>
-                {% endif %}
+            <div style="background-color: white; border-radius: 1rem; padding: 2rem; text-align: center; grid-column: 1 / -1;">
+                <h2 style="font-size: 1.5rem; font-weight: 700; color: #1f2937;">No Events Found</h2>
+                <p style="color: #6b7280; margin-top: 0.5rem;">Sorry, no events match your current search criteria. Try a different search or category.</p>
+                <a href="{{ url_for('index') }}" class="btn btn-secondary" style="width: auto; margin-top: 1.5rem;">Clear Search</a>
             </div>
         {% endfor %}
     </div>
