@@ -8,6 +8,7 @@ import re
 from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify, session
 from flask_sqlalchemy import SQLAlchemy
+from sqlalchemy import or_ # NEW: Import for the search query
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
@@ -124,12 +125,12 @@ class Ticket(db.Model):
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False, default=0.0)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False) # The owner
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
-    status = db.Column(db.String(20), nullable=False, default='active') # active, pending_transfer
+    status = db.Column(db.String(20), nullable=False, default='active')
     recipient_name = db.Column(db.String(100), nullable=True)
     recipient_email = db.Column(db.String(120), nullable=True)
-    transfer_token = db.Column(db.String(100), nullable=True, unique=True) # Will be NULL unless a gift email fails to send
+    transfer_token = db.Column(db.String(100), nullable=True, unique=True)
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -273,8 +274,8 @@ def send_organizer_status_email(user, status, reason=None):
         
 def send_gift_email(ticket, recipient_name, recipient_email):
     try:
-        # UPDATED: Use the token already stored on the ticket
-        claim_link = url_for('claim_ticket', token=ticket.transfer_token, _external=True)
+        token = serializer.dumps(ticket.id, salt='ticket-claim')
+        claim_link = url_for('claim_ticket', token=token, _external=True)
         logo_url = url_for('static', filename='logo.png', _external=True)
         email_html = render_template('gift_notification_email.html', 
                                      recipient_name=recipient_name, 
@@ -298,11 +299,39 @@ def log_audit_event(action, details, user=None):
 def index():
     try:
         now = datetime.now(pytz.utc)
-        events = Event.query.filter(Event.is_unlisted == False, Event.event_datetime > now).order_by(Event.is_featured.desc(), Event.event_datetime.asc()).all()
+        # Get search query and category from URL
+        query = request.args.get('q', '')
+        category = request.args.get('category', '')
+
+        # Start with the base query for public, future events
+        events_query = Event.query.filter(
+            Event.is_unlisted == False, 
+            Event.event_datetime > now
+        )
+
+        # Apply category filter if one is selected
+        if category:
+            events_query = events_query.filter(Event.category == category)
+        
+        # Apply search query if one exists
+        if query:
+            search_term = f"%{query}%"
+            events_query = events_query.filter(
+                or_(
+                    Event.name.ilike(search_term),
+                    Event.venue.ilike(search_term),
+                    Event.organizer_name.ilike(search_term)
+                )
+            )
+
+        # Final sorting
+        events = events_query.order_by(Event.is_featured.desc(), Event.event_datetime.asc()).all()
+        
     except Exception as e:
         print(f"Database error on index: {e}")
         events = []
-    return render_template('index.html', events=events)
+        
+    return render_template('index.html', events=events, query=query, category=category)
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
@@ -662,7 +691,6 @@ def purchase_ticket(event_id):
         new_ticket.recipient_email = recipient_email
         db.session.add(new_ticket)
         db.session.commit()
-        # UPDATED: Create token from ticket.id *after* it has been committed
         new_ticket.transfer_token = serializer.dumps(new_ticket.id, salt='ticket-claim')
         db.session.commit()
         send_gift_email(new_ticket, recipient_name, recipient_email)
@@ -679,17 +707,15 @@ def purchase_ticket(event_id):
 @login_required
 def claim_ticket(token):
     try:
-        # UPDATED: Validate the token and set a 1-day expiration
         ticket_id = serializer.loads(token, salt='ticket-claim', max_age=86400)
     except:
         flash('This gift link is invalid or has expired.', 'danger')
         return redirect(url_for('index'))
 
-    # UPDATED: Find ticket by ID (from token) and check token field
     ticket = Ticket.query.get_or_404(ticket_id)
-
-    if ticket.transfer_token != token or ticket.status != 'pending_transfer':
-        flash('This ticket has already been claimed or the link is invalid.', 'info')
+    
+    if ticket.status != 'pending_transfer':
+        flash('This ticket has already been claimed.', 'info')
         return redirect(url_for('login'))
 
     if ticket.recipient_email != current_user.email:
@@ -700,7 +726,7 @@ def claim_ticket(token):
     ticket.status = 'active'
     ticket.recipient_name = None
     ticket.recipient_email = None
-    ticket.transfer_token = None # Nullify the token so it can't be used again
+    ticket.transfer_token = None
     db.session.commit()
     
     log_audit_event("claim_ticket", f"User '{current_user.username}' claimed ticket {ticket.id}.", user=current_user)
