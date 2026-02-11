@@ -2,113 +2,119 @@
 {% block title %}My Profile{% endblock %}
 
 {% block content %}
+
 <div class="main-container">
-    <div style="margin-bottom: 2rem;">
-        <h1 style="font-size: 2.25rem; font-weight: 800; color: #1f2937;">Hello, {{ current_user.username }}!</h1>
-        <p style="color: #6b7280;">Welcome to your profile page.</p>
-    </div>
+<div style="margin-bottom: 2rem;">
+<h1 style="font-size: 2rem; font-weight: 800; color: #1f2937;">Welcome, {{ current_user.username }}</h1>
+<p style="color: #6b7280;">Manage your account, view your tickets, and see your created events.</p>
+</div>
 
-    <!-- Organizer Status Section -->
-    {% if current_user.role == 'organizer' %}
-        <div class="status-banner status-{{ current_user.approval_status }}">
-            {% if current_user.approval_status == 'pending' %}
-                <strong>Application Pending:</strong> Your organizer account is currently under review.
-            {% elif current_user.approval_status == 'approved' %}
-                <strong>Application Approved:</strong> You can now create and manage events.
-            {% elif current_user.approval_status == 'rejected' %}
-                <strong>Application Denied:</strong> Your application was not approved.
-                <p style="margin-top: 0.5rem; font-size: 0.9em;"><strong>Reason:</strong> {{ current_user.rejection_reason }}</p>
-                <a href="{{ url_for('resubmit_application') }}" class="btn" style="width: auto; margin-top: 1rem; font-size: 0.8rem; padding: 8px 12px;">Update & Resubmit Application</a>
-            {% endif %}
+<!-- Organizer Status Banner -->
+{% if current_user.role == 'organizer' %}
+    <div style="background-color: #eff6ff; border-left: 4px solid #1e40af; padding: 1rem; border-radius: 0.5rem; margin-bottom: 2rem;">
+        <div style="display: flex; align-items: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" style="width: 20px; height: 20px; color: #1e40af; margin-right: 10px;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <p style="color: #1e40af; font-weight: 600; margin: 0;">Verified Event Organizer Account</p>
         </div>
-    {% endif %}
+    </div>
+{% endif %}
 
-    <!-- My Tickets -->
-    <div class="table-container" style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Purchased Tickets</h2>
-        {% if tickets %}
-            <table class="custom-table">
-                <thead>
+<!-- My Tickets -->
+<div class="table-container" style="margin-bottom: 2rem;">
+    <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Purchased Tickets</h2>
+    {% if tickets %}
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Event Name</th>
+                    <th>Ticket Type</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for ticket in tickets %}
                     <tr>
-                        <th>Event Name</th>
-                        <th>Ticket Type</th>
-                        <th>Status</th>
-                        <th>Action</th>
+                        <td>{{ ticket.event.name }}</td>
+                        <td>{{ ticket.ticket_type }}</td>
+                        <td>
+                            {% if ticket.payment_status == 'pending' %}
+                                <span class="status-badge" style="background-color: #ffedd5; color: #9a3412;">Payment Pending</span>
+                            {% elif ticket.payment_status == 'failed' %}
+                                <span class="status-badge" style="background-color: #fee2e2; color: #991b1b;">Payment Failed</span>
+                            {% else %}
+                                <span class="status-badge status-active">Active</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if ticket.payment_status == 'success' %}
+                                <a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn" style="width: auto;">View Ticket</a>
+                            {% elif ticket.payment_status == 'pending' %}
+                                <span style="font-size: 0.85rem; color: #6b7280;">Awaiting USSD PIN</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
                     </tr>
-                </thead>
-                <tbody>
-                    {% for ticket in tickets %}
-                        <tr>
-                            <td>{{ ticket.event.name }}</td>
-                            <td>{{ ticket.ticket_type }}</td>
-                            <td>
-                                {% if ticket.status == 'pending_transfer' %}
-                                    <span class="status-badge status-pending">Pending (Sent to {{ ticket.recipient_email }})</span>
-                                {% else %}
-                                    <span class="status-badge status-active">Active</span>
-                                {% endif %}
-                            </td>
-                            <td><a href="{{ url_for('view_ticket', ticket_id=ticket.id) }}" class="btn" style="width: auto;">View Ticket</a></td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't purchased any tickets yet.</p>
-        {% endif %}
-    </div>
-
-    <!-- My Events -->
-    {% if current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
-    <div class="table-container" style="margin-bottom: 2rem;">
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">My Created Events</h2>
-        {% if events %}
-            <table class="custom-table">
-                <thead>
-                    <tr>
-                        <th>Event Name</th>
-                        <th>Date & Venue</th>
-                        <th>Action</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for event in events %}
-                        <tr>
-                            <td>{{ event.name }}</td>
-                            <td>{{ event.event_datetime|to_local_time(fmt='%d %b %Y') }} at {{ event.venue }}</td>
-                            <td><a href="{{ url_for('event_dashboard', event_id=event.id) }}" class="btn btn-secondary" style="width: auto;">View Dashboard</a></td>
-                        </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        {% else %}
-            <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't created any events yet.</p>
-            <a href="{{ url_for('create_event') }}" class="btn" style="display: block; width: fit-content; margin: 1rem auto 0;">Create Your First Event</a>
-        {% endif %}
-    </div>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't purchased any tickets yet.</p>
     {% endif %}
+</div>
 
-    <!-- Security Settings Section -->
-    <div class="table-container">
-        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">Security Settings</h2>
-        
-        <div style="padding: 0.75rem 0; border-bottom: 1px solid #e5e7eb; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <p style="font-weight: 500; color: #374151;">Change Your Password</p>
-                <p style="font-size: 0.9rem; color: #6b7280;">It's a good idea to use a strong password you don't use elsewhere.</p>
-            </div>
-            <a href="{{ url_for('change_password') }}" class="btn" style="width: auto;">Change Password</a>
+<!-- My Events (For Organizers) -->
+{% if current_user.role in ['organizer', 'admin'] %}
+<div class="table-container">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+        <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937;">My Events</h2>
+        <a href="{{ url_for('create_event') }}" class="btn" style="width: auto;">Create New Event</a>
+    </div>
+    {% if events %}
+        <table class="custom-table">
+            <thead>
+                <tr>
+                    <th>Event Name</th>
+                    <th>Date</th>
+                    <th>Venue</th>
+                    <th>Tickets Sold</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for event in events %}
+                    <tr>
+                        <td><strong>{{ event.name }}</strong></td>
+                        <td>{{ event.event_datetime|to_local_time(fmt='%d %b, %Y') }}</td>
+                        <td>{{ event.venue }}</td>
+                        <td>{{ event.tickets|length }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p style="color: #6b7280; text-align: center; padding: 1rem;">You haven't created any events yet.</p>
+    {% endif %}
+</div>
+{% endif %}
+
+<!-- Security Settings -->
+<div style="margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e5e7eb;">
+    <h2 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">Account Settings</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+        <div style="background: white; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 0.85rem; color: #6b7280;">Email Address</p>
+            <p style="margin: 0; font-weight: 600;">{{ current_user.email }}</p>
         </div>
-
-        <div style="padding: 0.75rem 0; display: flex; justify-content: space-between; align-items: center;">
-            <div>
-                <p style="font-weight: 500; color: #374151;">Log Out on All Other Devices</p>
-                <p style="font-size: 0.9rem; color: #6b7280;">This will sign you out of all other active sessions on other computers or mobile devices.</p>
-            </div>
-            <form action="{{ url_for('logout_all_sessions') }}" method="post">
-                <button type="submit" class.="btn" style="width: auto; background-color: #6b7280;">Log Out Everywhere</button>
-            </form>
+        <div style="background: white; padding: 1.5rem; border-radius: 0.5rem; border: 1px solid #e5e7eb;">
+            <p style="margin: 0; font-size: 0.85rem; color: #6b7280;">Phone Number</p>
+            <p style="margin: 0; font-weight: 600;">{{ current_user.phone_number or 'Not provided' }}</p>
         </div>
     </div>
+</div>
+
+
 </div>
 {% endblock %}
