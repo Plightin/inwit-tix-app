@@ -1,121 +1,94 @@
 import os
 import uuid
 import base64
+import requests
+import time
 from io import BytesIO
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-import re
 from PIL import Image
-from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, abort, jsonify, session
+from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy import or_ # NEW: Import for the search query
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
 from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
-from weasyprint import HTML, CSS
+from weasyprint import HTML
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
-from functools import wraps
-from itsdangerous import URLSafeTimedSerializer
-import click
-from flask_limiter import Limiter
-from flask_limiter.util import get_remote_address
 import pytz
 
 # --- App Configuration ---
 load_dotenv()
 app = Flask(__name__)
+
+# Essential for handling HTTPS correctly behind Render's proxy
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
+# Database Setup
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', 'static/uploads')
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'pdf'}
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=8)
+app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', '/var/data/uploads')
+app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-app.config['SESSION_COOKIE_SECURE'] = True
-app.config['SESSION_COOKIE_HTTPONLY'] = True
-app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'
+# Airtel Credentials (Configured via Render Environment Variables)
+AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
+AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '2a6f724c-c42e-4ef7-9b43-8a3c20868a26')
+AIRTEL_BASE_URL = os.environ.get('AIRTEL_BASE_URL', 'https://openapiuat.airtel.co.zm')
+AIRTEL_COUNTRY = "ZM"
+AIRTEL_CURRENCY = "ZMW"
 
+# Email Configuration
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USE_SSL'] = False
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@inwittix.com')
 
-# Initialize extensions
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
-serializer = URLSafeTimedSerializer(app.config.get("SECRET_KEY", "default-secret-for-local-runs"))
-limiter = Limiter(
-    get_remote_address,
-    app=app,
-    default_limits=["200 per day", "50 per hour"],
-    storage_uri="memory://",
-)
-LUSAKA_TZ = pytz.timezone('Africa/Lusaka')
 
 # --- Database Models ---
+
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
-    role = db.Column(db.String(20), nullable=False, default='buyer')
-    approval_status = db.Column(db.String(20), nullable=False, default='approved')
-    rejection_reason = db.Column(db.Text, nullable=True)
-    is_email_confirmed = db.Column(db.Boolean, nullable=False, default=False)
-    company_profile_doc = db.Column(db.String(100), nullable=True)
-    tax_clearance_doc = db.Column(db.String(100), nullable=True)
-    banking_details_doc = db.Column(db.String(100), nullable=True)
-    session_id = db.Column(db.String(36), nullable=True)
-    is_suspended = db.Column(db.Boolean, nullable=False, default=False)
+    role = db.Column(db.String(20), default='user') # user, organizer, admin
+    approval_status = db.Column(db.String(20), default='approved') # approved, pending
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, role='buyer', phone_number=None):
+    def __init__(self, username, email, password, phone_number=None, role='user'):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        self.role = role
         self.phone_number = phone_number
-        if self.role == 'organizer':
-            self.approval_status = 'pending'
+        self.role = role
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    artwork = db.Column(db.String(100), nullable=False, default='default.jpg')
     venue = db.Column(db.String(150), nullable=False)
+    category = db.Column(db.String(50), default='Other')
     event_datetime = db.Column(db.DateTime, nullable=False)
+    artwork = db.Column(db.String(100), nullable=False, default='default.jpg')
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    price_ordinary = db.Column(db.Float, nullable=True)
-    price_vip = db.Column(db.Float, nullable=True)
-    price_vvip = db.Column(db.Float, nullable=True)
-    tickets_ordinary = db.Column(db.Integer, nullable=True)
-    tickets_vip = db.Column(db.Integer, nullable=True)
-    tickets_vvip = db.Column(db.Integer, nullable=True)
-    sales_start_date = db.Column(db.DateTime, nullable=True)
-    sales_end_date = db.Column(db.DateTime, nullable=True)
-    category = db.Column(db.String(50), nullable=True)
-    organizer_name = db.Column(db.String(100), nullable=True)
-    contact_info = db.Column(db.String(100), nullable=True)
-    external_link = db.Column(db.String(200), nullable=True)
-    purchase_limit = db.Column(db.Integer, nullable=False)
-    is_unlisted = db.Column(db.Boolean, default=False)
+    price_ordinary = db.Column(db.Float, default=0.0)
+    price_vip = db.Column(db.Float, default=0.0)
+    price_vvip = db.Column(db.Float, default=0.0)
     is_featured = db.Column(db.Boolean, default=False)
 
 class Ticket(db.Model):
@@ -123,31 +96,30 @@ class Ticket(db.Model):
     ticket_uid = db.Column(db.String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
     is_scanned = db.Column(db.Boolean, default=False)
     ticket_type = db.Column(db.String(50), nullable=False)
-    price_paid = db.Column(db.Float, nullable=False, default=0.0)
+    price_paid = db.Column(db.Float, nullable=False)
+    payment_status = db.Column(db.String(20), default='pending') # pending, success, failed
+    airtel_id = db.Column(db.String(100), nullable=True)
+    partner_id = db.Column(db.String(100), unique=True, nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     event = db.relationship('Event', backref='tickets')
-    status = db.Column(db.String(20), nullable=False, default='active')
-    recipient_name = db.Column(db.String(100), nullable=True)
-    recipient_email = db.Column(db.String(120), nullable=True)
-    transfer_token = db.Column(db.String(100), nullable=True, unique=True)
 
-class AuditLog(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    timestamp = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
-    action = db.Column(db.String(100), nullable=False)
-    details = db.Column(db.Text, nullable=True)
-    user = db.relationship('User')
+# --- Template Filters ---
 
-# --- Admin & Authorization ---
-def admin_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not current_user.is_authenticated or current_user.role != 'admin':
-            abort(403)
-        return f(*args, **kwargs)
-    return decorated_function
+@app.template_filter('to_local_time')
+def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
+    """Converts UTC datetime to CAT (Central Africa Time) for display."""
+    if not dt: return ""
+    tz = pytz.timezone('Africa/Lusaka')
+    if dt.tzinfo is None:
+        dt = pytz.utc.localize(dt)
+    return dt.astimezone(tz).strftime(fmt)
+
+@app.context_processor
+def inject_now():
+    return {'current_year': datetime.now().year}
+
+# --- CLI Commands ---
 
 @app.cli.command("init-db")
 def init_db():
@@ -155,50 +127,14 @@ def init_db():
         db.create_all()
     print("Database initialized.")
 
-@app.cli.command("make-admin")
-@click.argument("username")
-def make_admin(username):
-    with app.app_context():
-        user = User.query.filter_by(username=username).first()
-        if user:
-            user.role = 'admin'
-            user.approval_status = 'approved'
-            user.is_email_confirmed = True
-            db.session.commit()
-            print(f"User '{username}' is now an admin.")
-        else:
-            print(f"User '{username}' not found.")
-
 # --- Helper Functions ---
-@app.before_request
-def make_session_permanent():
-    session.permanent = True
-    app.permanent_session_lifetime = timedelta(hours=8)
 
 @login_manager.user_loader
 def load_user(user_id):
-    user = User.query.get(int(user_id))
-    if user and session.get('session_id') == user.session_id:
-        return user
-    return None
+    return User.query.get(int(user_id))
 
-@app.context_processor
-def inject_current_year():
-    return {'current_year': datetime.now(LUSAKA_TZ).year}
-
-@app.template_filter('to_local_time')
-def to_local_time(utc_dt, fmt='%A, %d %B %Y at %I:%M %p'):
-    if utc_dt is None:
-        return ""
-    local_dt = utc_dt.replace(tzinfo=pytz.utc).astimezone(LUSAKA_TZ)
-    return local_dt.strftime(fmt)
-
-def is_password_strong(password):
-    if len(password) < 8: return False, "Password must be at least 8 characters long."
-    if not re.search(r"[A-Z]", password): return False, "Password must contain an uppercase letter."
-    if not re.search(r"[a-z]", password): return False, "Password must contain a lowercase letter."
-    if not re.search(r"[0-9]", password): return False, "Password must contain a number."
-    return True, ""
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 def generate_qr_code(ticket_uid):
     import qrcode
@@ -210,535 +146,233 @@ def generate_qr_code(ticket_uid):
     img.save(buffered, format="PNG")
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
-def allowed_file(filename):
-    return '.' in filename and \
-           filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-def save_document(file_storage, user_id):
-    if file_storage and file_storage.filename != '' and allowed_file(file_storage.filename):
-        filename = secure_filename(file_storage.filename)
-        unique_filename = f"user_{user_id}_{uuid.uuid4().hex[:8]}_{filename}"
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file_storage.save(file_path)
-        return unique_filename
-    return None
-
-def send_activation_email(user):
-    try:
-        token = serializer.dumps(user.email, salt='email-confirm')
-        activation_link = url_for('activate_account', token=token, _external=True)
-        logo_url = url_for('static', filename='logo.png', _external=True)
-        email_html = render_template('activate_email.html', username=user.username, activation_link=activation_link, logo_url=logo_url)
-        msg = Message(subject="Activate Your Inwit Tix Account", recipients=[user.email], html=email_html)
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending activation email: {e}")
-
-def send_password_reset_email(user):
-    try:
-        token = serializer.dumps(user.email, salt='password-reset')
-        reset_link = url_for('reset_password', token=token, _external=True)
-        logo_url = url_for('static', filename='logo.png', _external=True)
-        email_html = render_template('reset_email.html', username=user.username, reset_link=reset_link, logo_url=logo_url)
-        msg = Message(subject="Reset Your Inwit Tix Password", recipients=[user.email], html=email_html)
-        mail.send(msg)
-    except Exception as e:
-        print(f"Error sending password reset email: {e}")
-
 def create_and_email_ticket(ticket):
+    """Generates PDF and sends email to the ticket owner."""
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
+        
+        # Render PDF
         html_for_pdf = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
         pdf_bytes = HTML(string=html_for_pdf, base_url=request.url_root).write_pdf()
+        
+        # Render Email
         email_html = render_template('email_ticket.html', ticket=ticket, logo_url=logo_url)
+        
         msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
         msg.html = email_html
         msg.attach(f"inwit-tix-ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
         mail.send(msg)
-        flash('Your ticket has been sent to your email address.', 'success')
+        return True
     except Exception as e:
-        print(f"Error emailing ticket: {e}")
-        flash('There was an issue emailing your ticket. Please configure your email settings.', 'danger')
+        print(f"Email error: {e}")
+        return False
 
-def send_organizer_status_email(user, status, reason=None):
+# --- Airtel API Helpers ---
+
+def get_airtel_token():
+    url = f"{AIRTEL_BASE_URL}/auth/oauth2/token"
+    payload = {
+        "client_id": AIRTEL_CLIENT_ID,
+        "client_secret": AIRTEL_CLIENT_SECRET,
+        "grant_type": "client_credentials"
+    }
     try:
-        logo_url = url_for('static', filename='logo.png', _external=True)
-        resubmit_link = url_for('resubmit_application', _external=True) if status == 'rejected' else None
-        email_html = render_template('organizer_status_email.html', user=user, status=status, reason=reason, resubmit_link=resubmit_link, logo_url=logo_url)
-        subject = f"Your Inwit Tix Organizer Application has been {status.capitalize()}"
-        msg = Message(subject=subject, recipients=[user.email], html=email_html)
-        mail.send(msg)
+        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
+        return response.json().get('access_token')
     except Exception as e:
-        print(f"Error sending organizer status email: {e}")
-        
-def send_gift_email(ticket, recipient_name, recipient_email):
+        print(f"Airtel Auth Error: {e}")
+        return None
+
+def initiate_ussd_push(msisdn, amount, partner_id):
+    token = get_airtel_token()
+    if not token: return None, "Auth Failed"
+    
+    url = f"{AIRTEL_BASE_URL}/merchant/v1/payments/"
+    headers = {
+        "Content-Type": "application/json",
+        "Accept": "*/*",
+        "X-Country": AIRTEL_COUNTRY,
+        "X-Currency": AIRTEL_CURRENCY,
+        "Authorization": f"Bearer {token}"
+    }
+    
+    clean_phone = msisdn.replace("+", "").replace(" ", "")
+    if clean_phone.startswith('260'): clean_phone = clean_phone[3:]
+    elif clean_phone.startswith('0'): clean_phone = clean_phone[1:]
+
+    payload = {
+        "reference": "Inwit Ticket Purchase",
+        "subscriber": {
+            "country": AIRTEL_COUNTRY,
+            "currency": AIRTEL_CURRENCY,
+            "msisdn": clean_phone
+        },
+        "transaction": {
+            "amount": amount,
+            "id": partner_id
+        }
+    }
+    
     try:
-        token = serializer.dumps(ticket.id, salt='ticket-claim')
-        claim_link = url_for('claim_ticket', token=token, _external=True)
-        logo_url = url_for('static', filename='logo.png', _external=True)
-        email_html = render_template('gift_notification_email.html', 
-                                     recipient_name=recipient_name, 
-                                     buyer_name=ticket.owner.username, 
-                                     event_name=ticket.event.name,
-                                     claim_link=claim_link, 
-                                     logo_url=logo_url)
-        msg = Message(subject=f"{ticket.owner.username} sent you a ticket!", recipients=[recipient_email], html=email_html)
-        mail.send(msg)
+        response = requests.post(url, json=payload, headers=headers, timeout=15)
+        data = response.json()
+        if response.status_code == 200 and data.get('status', {}).get('success'):
+            return data.get('data', {}).get('transaction', {}).get('id'), "Success"
+        return None, data.get('status', {}).get('message', 'Airtel API Error')
     except Exception as e:
-        print(f"Error sending gift notification email: {e}")
+        return None, str(e)
 
-def log_audit_event(action, details, user=None):
-    user_id = user.id if user else None
-    log = AuditLog(user_id=user_id, action=action, details=details)
-    db.session.add(log)
-    db.session.commit()
+# --- Routes ---
 
-# --- Web Routes ---
 @app.route('/')
 def index():
-    try:
-        now = datetime.now(pytz.utc)
-        # Get search query and category from URL
-        query = request.args.get('q', '')
-        category = request.args.get('category', '')
-
-        # Start with the base query for public, future events
-        events_query = Event.query.filter(
-            Event.is_unlisted == False, 
-            Event.event_datetime > now
-        )
-
-        # Apply category filter if one is selected
-        if category:
-            events_query = events_query.filter(Event.category == category)
+    query = request.args.get('q', '')
+    category = request.args.get('category', '')
+    
+    events_query = Event.query
+    if query:
+        events_query = events_query.filter(Event.name.ilike(f'%{query}%') | Event.venue.ilike(f'%{query}%'))
+    if category:
+        events_query = events_query.filter_by(category=category)
         
-        # Apply search query if one exists
-        if query:
-            search_term = f"%{query}%"
-            events_query = events_query.filter(
-                or_(
-                    Event.name.ilike(search_term),
-                    Event.venue.ilike(search_term),
-                    Event.organizer_name.ilike(search_term)
-                )
-            )
-
-        # Final sorting
-        events = events_query.order_by(Event.is_featured.desc(), Event.event_datetime.asc()).all()
-        
-    except Exception as e:
-        print(f"Database error on index: {e}")
-        events = []
-        
+    events = events_query.order_by(Event.event_datetime.asc()).all()
     return render_template('index.html', events=events, query=query, category=category)
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
+    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-@app.route('/help')
-def help_page():
-    return render_template('help.html')
-
-@app.route('/register')
+@app.route('/register', methods=['GET', 'POST'])
 def register():
-    return render_template('register_options.html')
-
-@app.route('/register/buyer', methods=['GET', 'POST'])
-@limiter.limit("10 per hour")
-def register_buyer():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
+    if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
         username = request.form.get('username')
         email = request.form.get('email')
         password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
         phone = request.form.get('phone_number')
-        if not all([username, email, password, confirm_password]):
-            flash('All fields are required.', 'danger')
-            return redirect(url_for('register_buyer'))
-        if password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return redirect(url_for('register_buyer'))
-        is_strong, message = is_password_strong(password)
-        if not is_strong:
-            flash(message, 'danger')
-            return redirect(url_for('register_buyer'))
-        if User.query.filter((User.username == username) | (User.email == email)).first():
-            flash('Username or email already exists.', 'danger')
-            return redirect(url_for('register_buyer'))
-        new_user = User(username=username, email=email, password=password, phone_number=phone, role='buyer')
-        new_user.is_email_confirmed = False
-        db.session.add(new_user)
-        db.session.commit()
-        send_activation_email(new_user)
-        flash('A confirmation email has been sent. Please check your inbox to activate your account.', 'success')
-        return redirect(url_for('login'))
-    return render_template('register_buyer.html')
-
-@app.route('/register/organizer', methods=['GET', 'POST'])
-@limiter.limit("5 per hour")
-def register_organizer():
-    if current_user.is_authenticated:
-        return redirect(url_for('index'))
-    if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        phone = request.form.get('phone_number')
-        if not all([username, email, password, confirm_password, phone]):
-            flash('All text fields are required for organizer registration.', 'danger')
-            return redirect(url_for('register_organizer'))
-        if password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return redirect(url_for('register_organizer'))
-        is_strong, message = is_password_strong(password)
-        if not is_strong:
-            flash(message, 'danger')
-            return redirect(url_for('register_organizer'))
-        if User.query.filter((User.username == username) | (User.email == email)).first():
-            flash('Username or email already exists.', 'danger')
-            return redirect(url_for('register_organizer'))
-        profile_doc = request.files.get('company_profile_doc')
-        tax_doc = request.files.get('tax_clearance_doc')
-        banking_doc = request.files.get('banking_details_doc')
-        if not profile_doc or profile_doc.filename == '' or \
-           not tax_doc or tax_doc.filename == '' or \
-           not banking_doc or banking_doc.filename == '':
-            flash('All document uploads are required.', 'danger')
-            return redirect(url_for('register_organizer'))
-        new_user = User(username=username, email=email, password=password, phone_number=phone, role='organizer')
-        db.session.add(new_user)
-        db.session.commit()
-        new_user.company_profile_doc = save_document(profile_doc, new_user.id)
-        new_user.tax_clearance_doc = save_document(tax_doc, new_user.id)
-        new_user.banking_details_doc = save_document(banking_doc, new_user.id)
-        new_user.is_email_confirmed = False
-        db.session.commit()
-        send_activation_email(new_user)
-        flash('Thank you for registering. Please check your email to activate your account. Your application will then be reviewed.', 'info')
-        return redirect(url_for('login'))
-    return render_template('register_organizer.html')
-
-@app.route('/activate/<token>')
-def activate_account(token):
-    try:
-        email = serializer.loads(token, salt='email-confirm', max_age=3600)
-    except:
-        flash('The confirmation link is invalid or has expired. Please request a new one.', 'danger')
-        return redirect(url_for('resend_activation'))
-    user = User.query.filter_by(email=email).first_or_404()
-    if user.is_email_confirmed:
-        flash('Account already confirmed. Please log in.', 'success')
-    else:
-        user.is_email_confirmed = True
-        db.session.commit()
-        flash('Your account has been activated! You can now log in.', 'success')
-    return redirect(url_for('login'))
-
-@app.route('/resend-activation', methods=['GET', 'POST'])
-@limiter.limit("5 per minute")
-def resend_activation():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        user = User.query.filter_by(email=email).first()
-        if user and not user.is_email_confirmed:
-            send_activation_email(user)
-        flash('If an account with that email address exists and is unconfirmed, a new activation link has been sent.', 'info')
-        return redirect(url_for('login'))
-    return render_template('resend_activation.html')
-
-@app.route('/forgot-password', methods=['GET', 'POST'])
-@limiter.limit("5 per minute")
-def forgot_password():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        user = User.query.filter_by(email=email).first()
-        if user:
-            send_password_reset_email(user)
-        flash('If an account with that email exists, a password reset link has been sent.', 'info')
-        return redirect(url_for('login'))
-    return render_template('forgot_password.html')
-
-@app.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    try:
-        email = serializer.loads(token, salt='password-reset', max_age=3600)
-    except:
-        flash('The password reset link is invalid or has expired.', 'danger')
-        return redirect(url_for('forgot_password'))
-    user = User.query.filter_by(email=email).first_or_404()
-    if request.method == 'POST':
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
-        if password != confirm_password:
-            flash('Passwords do not match.', 'danger')
-            return redirect(url_for('reset_password', token=token))
-        user.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        user.session_id = str(uuid.uuid4())
-        db.session.commit()
-        log_audit_event("password_reset", f"User '{user.username}' reset their password.", user=user)
-        flash('Your password has been updated! You can now log in.', 'success')
-        return redirect(url_for('login'))
-    return render_template('reset_password.html', token=token)
+        
+        if User.query.filter_by(username=username).first():
+            flash('Username taken.', 'danger')
+        else:
+            new_user = User(username, email, password, phone)
+            db.session.add(new_user)
+            db.session.commit()
+            flash('Registered! Please login.', 'success')
+            return redirect(url_for('login'))
+    return render_template('register.html')
 
 @app.route('/login', methods=['GET', 'POST'])
-@limiter.limit("10 per minute")
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('profile'))
+    if current_user.is_authenticated: return redirect(url_for('profile'))
     if request.method == 'POST':
-        username = request.form.get('username')
-        password = request.form.get('password')
-        if not username or not password:
-            flash('Both username and password are required.', 'danger')
-            return redirect(url_for('login'))
-        user = User.query.filter_by(username=username).first()
-        if user and bcrypt.check_password_hash(user.password_hash, password):
-            if not user.is_email_confirmed:
-                flash('Please activate your account first. Check your email for the confirmation link.', 'warning')
-                return redirect(url_for('login'))
-            if user.is_suspended:
-                flash('Your account has been suspended.', 'danger')
-                return redirect(url_for('login'))
-            user.session_id = str(uuid.uuid4())
-            db.session.commit()
+        user = User.query.filter_by(username=request.form.get('username')).first()
+        if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
             login_user(user, remember=True)
-            session['session_id'] = user.session_id
-            log_audit_event("user_login", f"User '{user.username}' logged in.", user=user)
             return redirect(url_for('profile'))
-        else:
-            flash('Login unsuccessful. Please check username and password.', 'danger')
-            return redirect(url_for('login'))
+        flash('Login failed.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
-@login_required
 def logout():
-    log_audit_event("user_logout", f"User '{current_user.username}' logged out.", user=current_user)
     logout_user()
     return redirect(url_for('index'))
-
-@app.route('/profile/logout-all', methods=['POST'])
-@login_required
-def logout_all_sessions():
-    current_user.session_id = str(uuid.uuid4())
-    db.session.commit()
-    session['session_id'] = current_user.session_id
-    log_audit_event("logout_all_sessions", f"User '{current_user.username}' logged out of all other devices.", user=current_user)
-    flash('You have been logged out of all other devices.', 'success')
-    return redirect(url_for('profile'))
 
 @app.route('/profile')
 @login_required
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
-@app.route('/profile/change-password', methods=['GET', 'POST'])
-@login_required
-def change_password():
-    if request.method == 'POST':
-        old_password = request.form.get('old_password')
-        new_password = request.form.get('new_password')
-        confirm_new_password = request.form.get('confirm_new_password')
-        if not bcrypt.check_password_hash(current_user.password_hash, old_password):
-            flash('Your old password was incorrect. Please try again.', 'danger')
-            return redirect(url_for('change_password'))
-        if new_password != confirm_new_password:
-            flash('New passwords do not match.', 'danger')
-            return redirect(url_for('change_password'))
-        is_strong, message = is_password_strong(new_password)
-        if not is_strong:
-            flash(message, 'danger')
-            return redirect(url_for('change_password'))
-        current_user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-        current_user.session_id = str(uuid.uuid4())
-        db.session.commit()
-        session['session_id'] = current_user.session_id
-        log_audit_event("change_password", f"User '{current_user.username}' changed their password.", user=current_user)
-        flash('Your password has been successfully updated.', 'success')
-        return redirect(url_for('profile'))
-    return render_template('change_password.html')
-
-@app.route('/resubmit-application', methods=['GET', 'POST'])
-@login_required
-def resubmit_application():
-    if not (current_user.role == 'organizer' and current_user.approval_status == 'rejected'):
-        abort(403)
-    
-    if request.method == 'POST':
-        current_user.phone_number = request.form.get('phone_number')
-        
-        if 'company_profile_doc' in request.files:
-            new_profile = save_document(request.files['company_profile_doc'], current_user.id)
-            if new_profile: current_user.company_profile_doc = new_profile
-        
-        if 'tax_clearance_doc' in request.files:
-            new_tax = save_document(request.files['tax_clearance_doc'], current_user.id)
-            if new_tax: current_user.tax_clearance_doc = new_tax
-            
-        if 'banking_details_doc' in request.files:
-            new_banking = save_document(request.files['banking_details_doc'], current_user.id)
-            if new_banking: current_user.banking_details_doc = new_banking
-        
-        current_user.approval_status = 'pending'
-        current_user.rejection_reason = None
-        db.session.commit()
-        flash('Your application has been resubmitted for review.', 'success')
-        return redirect(url_for('profile'))
-
-    return render_template('resubmit_application.html')
-
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
-    if not (current_user.role == 'organizer' and current_user.approval_status == 'approved'):
-        flash('Your organizer account must be approved to create an event.', 'danger')
-        return redirect(url_for('profile'))
     if request.method == 'POST':
-        if 'artwork' not in request.files:
-            flash('No file part', 'danger')
-            return redirect(request.url)
         file = request.files['artwork']
-        if file.filename == '' or not allowed_file(file.filename):
-            flash('No selected file or file type not allowed', 'danger')
-            return redirect(request.url)
-        purchase_limit = request.form.get('purchase_limit')
-        if not purchase_limit:
-            flash('The "Max Tickets Per Purchase" field is required.', 'danger')
-            return redirect(url_for('create_event'))
-
-        filename = secure_filename(file.filename)
-        unique_filename = str(uuid.uuid4().hex[:16]) + '_' + filename
-        file_path = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
-        file.save(file_path)
-        
-        new_event = Event(
-            name=request.form.get('name'), description=request.form.get('description'), venue=request.form.get('venue'),
-            event_datetime=datetime.strptime(request.form.get('event_datetime'), '%Y-%m-%dT%H:%M'), artwork=unique_filename, creator=current_user,
-            price_ordinary=request.form.get('price_ordinary', type=float) or None, price_vip=request.form.get('price_vip', type=float) or None,
-            price_vvip=request.form.get('price_vvip', type=float) or None, tickets_ordinary=request.form.get('tickets_ordinary', type=int) or None,
-            tickets_vip=request.form.get('tickets_vip', type=int) or None, tickets_vvip=request.form.get('tickets_vvip', type=int) or None,
-            sales_start_date=datetime.strptime(request.form.get('sales_start_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_start_date') else None,
-            sales_end_date=datetime.strptime(request.form.get('sales_end_date'), '%Y-%m-%dT%H:%M') if request.form.get('sales_end_date') else None,
-            category=request.form.get('category'), organizer_name=request.form.get('organizer_name'), contact_info=request.form.get('contact_info'),
-            external_link=request.form.get('external_link'), purchase_limit=int(purchase_limit), is_unlisted='is_unlisted' in request.form
-        )
-        db.session.add(new_event)
-        db.session.commit()
-        log_audit_event("create_event", f"Organizer '{current_user.username}' created event '{new_event.name}'.", user=current_user)
-        flash('Event created successfully!', 'success')
-        return redirect(url_for('index'))
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            unique_name = f"{uuid.uuid4().hex[:10]}_{filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
+            
+            new_event = Event(
+                name=request.form.get('name'),
+                description=request.form.get('description'),
+                venue=request.form.get('venue'),
+                category=request.form.get('category'),
+                event_datetime=datetime.strptime(request.form.get('event_datetime'), '%Y-%m-%dT%H:%M'),
+                artwork=unique_name,
+                creator=current_user,
+                price_ordinary=float(request.form.get('price_ordinary') or 0),
+                price_vip=float(request.form.get('price_vip') or 0),
+                price_vvip=float(request.form.get('price_vvip') or 0)
+            )
+            db.session.add(new_event)
+            db.session.commit()
+            flash('Event created!', 'success')
+            return redirect(url_for('index'))
     return render_template('create_event.html')
 
 @app.route('/event/<int:event_id>')
 def event_detail(event_id):
     event = Event.query.get_or_404(event_id)
-    return render_template('event_detail.html', event=event, datetime=datetime, pytz=pytz)
+    return render_template('event_detail.html', event=event)
 
 @app.route('/purchase/<int:event_id>', methods=['POST'])
 @login_required
 def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
-    is_gift = 'is_gift' in request.form
-    recipient_name = request.form.get('recipient_name')
-    recipient_email = request.form.get('recipient_email')
-    
-    if not ticket_type:
-        flash('Please select a ticket type.', 'danger')
-        return redirect(url_for('event_detail', event_id=event.id))
-        
-    if is_gift and (not recipient_name or not recipient_email):
-        flash('Recipient name and email are required to gift a ticket.', 'danger')
-        return redirect(url_for('event_detail', event_id=event.id))
+    phone = request.form.get('phone_number')
 
-    now = datetime.now(pytz.utc)
-    if event.sales_start_date and now < event.sales_start_date.replace(tzinfo=pytz.utc):
-        flash('Ticket sales have not started for this event yet.', 'danger')
-        return redirect(url_for('event_detail', event_id=event.id))
-    if event.sales_end_date and now > event.sales_end_date.replace(tzinfo=pytz.utc):
-        flash('Ticket sales for this event have ended.', 'danger')
-        return redirect(url_for('event_detail', event_id=event.id))
-        
-    ticket_count = Ticket.query.filter_by(event_id=event.id, ticket_type=ticket_type).count()
-    max_tickets = 0
-    if ticket_type == 'Ordinary': max_tickets = event.tickets_ordinary
-    elif ticket_type == 'VIP': max_tickets = event.tickets_vip
-    elif ticket_type == 'VVIP': max_tickets = event.tickets_vvip
-    if max_tickets is not None and ticket_count >= max_tickets:
-        flash(f'Sorry, {ticket_type} tickets are sold out.', 'danger')
-        return redirect(url_for('event_detail', event_id=event.id))
-        
-    price_paid = 0
-    if ticket_type == 'Ordinary': price_paid = event.price_ordinary
-    elif ticket_type == 'VIP': price_paid = event.price_vip
-    elif ticket_type == 'VVIP': price_paid = event.price_vvip
-    
+    price = 0
+    if ticket_type == 'Ordinary': price = event.price_ordinary
+    elif ticket_type == 'VIP': price = event.price_vip
+    elif ticket_type == 'VVIP': price = event.price_vvip
+
+    partner_id = str(uuid.uuid4())
     new_ticket = Ticket(
-        owner=current_user, 
-        event=event, 
-        ticket_type=ticket_type, 
-        price_paid=price_paid
+        owner=current_user, event=event, ticket_type=ticket_type,
+        price_paid=price, partner_id=partner_id, payment_status='pending'
     )
-
-    if is_gift:
-        new_ticket.status = 'pending_transfer'
-        new_ticket.recipient_name = recipient_name
-        new_ticket.recipient_email = recipient_email
-        db.session.add(new_ticket)
-        db.session.commit()
-        new_ticket.transfer_token = serializer.dumps(new_ticket.id, salt='ticket-claim')
-        db.session.commit()
-        send_gift_email(new_ticket, recipient_name, recipient_email)
-        flash(f'Ticket has been purchased and a gift email sent to {recipient_email}.', 'success')
-    else:
-        new_ticket.status = 'active'
-        db.session.add(new_ticket)
-        db.session.commit()
-        create_and_email_ticket(new_ticket)
-        
-    return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
-
-@app.route('/claim-ticket/<token>')
-@login_required
-def claim_ticket(token):
-    try:
-        ticket_id = serializer.loads(token, salt='ticket-claim', max_age=86400)
-    except:
-        flash('This gift link is invalid or has expired.', 'danger')
-        return redirect(url_for('index'))
-
-    ticket = Ticket.query.get_or_404(ticket_id)
-    
-    if ticket.status != 'pending_transfer':
-        flash('This ticket has already been claimed.', 'info')
-        return redirect(url_for('login'))
-
-    if ticket.recipient_email != current_user.email:
-        flash('This ticket was gifted to a different email address. Please log in with the correct account.', 'danger')
-        return redirect(url_for('index'))
-        
-    ticket.user_id = current_user.id
-    ticket.status = 'active'
-    ticket.recipient_name = None
-    ticket.recipient_email = None
-    ticket.transfer_token = None
+    db.session.add(new_ticket)
     db.session.commit()
-    
-    log_audit_event("claim_ticket", f"User '{current_user.username}' claimed ticket {ticket.id}.", user=current_user)
-    flash('Ticket successfully claimed! It has been added to your profile.', 'success')
-    return redirect(url_for('view_ticket', ticket_id=ticket.id))
+
+    airtel_id, msg = initiate_ussd_push(phone, price, partner_id)
+    if airtel_id:
+        new_ticket.airtel_id = airtel_id
+        db.session.commit()
+        flash(f'USSD Push sent! Enter PIN on your phone to pay K{price}.', 'info')
+        return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
+    else:
+        db.session.delete(new_ticket)
+        db.session.commit()
+        flash(f'Payment Failed: {msg}', 'danger')
+        return redirect(url_for('event_detail', event_id=event.id))
+
+@app.route('/airtel/callback', methods=['POST'])
+def airtel_callback():
+    data = request.json
+    txn = data.get('transaction', {})
+    partner_id = txn.get('id')
+    status = txn.get('status') # 'TS' = Success
+
+    ticket = Ticket.query.filter_by(partner_id=partner_id).first()
+    if ticket:
+        if status == 'TS':
+            ticket.payment_status = 'success'
+            # Trigger email once paid
+            with app.app_context():
+                create_and_email_ticket(ticket)
+        else:
+            ticket.payment_status = 'failed'
+        db.session.commit()
+    return jsonify({"status": "ok"}), 200
 
 @app.route('/ticket/<int:ticket_id>')
 @login_required
 def view_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.owner != current_user:
-        abort(403)
+    if ticket.owner != current_user: return "Unauthorized", 403
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     return render_template('ticket.html', ticket=ticket, qr_code_img=qr_code_img)
 
@@ -746,162 +380,53 @@ def view_ticket(ticket_id):
 @login_required
 def download_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.owner != current_user:
-        abort(403)
+    if ticket.owner != current_user: return "Unauthorized", 403
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     logo_url = url_for('static', filename='logo.png', _external=True)
     html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
     pdf = HTML(string=html_out, base_url=request.url_root).write_pdf()
-    return send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=f'inwit-tix-ticket-{ticket.id}.pdf')
+    return send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=f'ticket-{ticket.id}.pdf')
 
 @app.route('/ticket/email/<int:ticket_id>')
 @login_required
 def resend_email_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
-    if ticket.owner != current_user:
-        abort(403)
-    create_and_email_ticket(ticket)
+    if ticket.owner != current_user: return "Unauthorized", 403
+    if ticket.payment_status != 'success':
+        flash('Ticket must be paid before emailing.', 'warning')
+    else:
+        if create_and_email_ticket(ticket):
+            flash('Ticket emailed!', 'success')
+        else:
+            flash('Error sending email.', 'danger')
     return redirect(url_for('view_ticket', ticket_id=ticket.id))
 
-@app.route('/scanner')
+@app.route('/scan')
 @login_required
 def scanner():
-    return render_template('scanner.html')
+    if current_user.role not in ['organizer', 'admin']: return redirect(url_for('index'))
+    return render_template('scan.html')
 
 @app.route('/verify_ticket', methods=['POST'])
 @login_required
 def verify_ticket():
-    data = request.get_json()
-    if not data or 'ticket_uid' not in data:
-        return jsonify({'status': 'danger', 'message': 'Invalid request.'}), 400
-    ticket_uid = data['ticket_uid']
+    ticket_uid = request.form.get('ticket_uid')
     ticket = Ticket.query.filter_by(ticket_uid=ticket_uid).first()
     if not ticket:
-        return jsonify({'status': 'danger', 'message': f'INVALID: Ticket not found.'})
-    if ticket.event.creator != current_user:
-        return jsonify({'status': 'danger', 'message': 'UNAUTHORIZED: You did not create this event.'})
-    if ticket.is_scanned:
-        return jsonify({'status': 'warning', 'message': f'ALREADY SCANNED: Ticket for {ticket.owner.username} was used.'})
+        flash("Invalid Ticket UID.", 'danger')
+    elif ticket.is_scanned:
+        flash(f"Already Scanned! Used by {ticket.owner.username}.", 'warning')
+    elif ticket.payment_status != 'success':
+        flash("Unpaid Ticket.", 'danger')
     else:
         ticket.is_scanned = True
         db.session.commit()
-        return jsonify({'status': 'success', 'message': f'SUCCESS: Welcome, {ticket.owner.username}! ({ticket.ticket_type})'})
+        flash(f"Valid! Welcome {ticket.owner.username}.", 'success')
+    return redirect(url_for('scanner'))
 
-@app.route('/dashboard/<int:event_id>')
-@login_required
-def event_dashboard(event_id):
-    event = Event.query.get_or_404(event_id)
-    if event.creator != current_user:
-        abort(403)
-    tickets = event.tickets
-    total_tickets_sold = len(tickets)
-    total_revenue = sum(ticket.price_paid for ticket in tickets)
-    sales_by_type = {'Ordinary': {'count': 0, 'revenue': 0}, 'VIP': {'count': 0, 'revenue': 0}, 'VVIP': {'count': 0, 'revenue': 0}}
-    for ticket in tickets:
-        if ticket.ticket_type in sales_by_type:
-            sales_by_type[ticket.ticket_type]['count'] += 1
-            sales_by_type[ticket.ticket_type]['revenue'] += ticket.price_paid
-    return render_template('dashboard.html', event=event, total_tickets_sold=total_tickets_sold, total_revenue=total_revenue, sales_by_type=sales_by_type, tickets=tickets)
-
-@app.route('/admin')
-@login_required
-@admin_required
-def admin_dashboard():
-    total_users = User.query.count()
-    total_events = Event.query.count()
-    total_tickets_sold = Ticket.query.count()
-    total_revenue = db.session.query(db.func.sum(Ticket.price_paid)).scalar() or 0
-    return render_template('admin_dashboard.html', total_users=total_users, total_events=total_events, total_tickets_sold=total_tickets_sold, total_revenue=total_revenue)
-
-@app.route('/admin/users')
-@login_required
-@admin_required
-def admin_users():
-    users = User.query.order_by(User.username).all()
-    return render_template('admin_users.html', users=users)
-
-@app.route('/admin/user/<int:user_id>/suspend', methods=['POST'])
-@login_required
-@admin_required
-def suspend_user(user_id):
-    user = User.query.get_or_404(user_id)
-    user.is_suspended = True
-    db.session.commit()
-    log_audit_event("suspend_user", f"Admin '{current_user.username}' suspended user '{user.username}'.", user=current_user)
-    flash(f"User '{user.username}' has been suspended.", 'warning')
-    return redirect(url_for('admin_users'))
-
-@app.route('/admin/user/<int:user_id>/unsuspend', methods=['POST'])
-@login_required
-@admin_required
-def unsuspend_user(user_id):
-    user = User.query.get_or_404(user_id)
-    user.is_suspended = False
-    db.session.commit()
-    log_audit_event("unsuspend_user", f"Admin '{current_user.username}' unsuspended user '{user.username}'.", user=current_user)
-    flash(f"User '{user.username}' has been unsuspended.", 'success')
-    return redirect(url_for('admin_users'))
-
-@app.route('/admin/events')
-@login_required
-@admin_required
-def admin_events():
-    events = Event.query.order_by(Event.event_datetime.desc()).all()
-    return render_template('admin_events.html', events=events)
-
-@app.route('/admin/event/<int:event_id>/toggle-feature', methods=['POST'])
-@login_required
-@admin_required
-def toggle_feature_event(event_id):
-    event = Event.query.get_or_404(event_id)
-    event.is_featured = not event.is_featured
-    db.session.commit()
-    status = "featured" if event.is_featured else "un-featured"
-    log_audit_event("toggle_feature", f"Admin '{current_user.username}' {status} event '{event.name}'.", user=current_user)
-    flash(f"Event '{event.name}' has been {status}.", 'success')
-    return redirect(url_for('admin_events'))
-
-@app.route('/admin/approvals')
-@login_required
-@admin_required
-def admin_approvals():
-    pending_organizers = User.query.filter_by(role='organizer', approval_status='pending').all()
-    return render_template('admin_approvals.html', organizers=pending_organizers)
-
-@app.route('/admin/review/<int:user_id>', methods=['POST'])
-@login_required
-@admin_required
-def review_organizer(user_id):
-    organizer = User.query.get_or_404(user_id)
-    action = request.form.get('action')
-    
-    if action == 'approve':
-        organizer.approval_status = 'approved'
-        organizer.rejection_reason = None
-        db.session.commit()
-        send_organizer_status_email(organizer, 'approved')
-        log_audit_event("approve_organizer", f"Admin '{current_user.username}' approved organizer '{organizer.username}'.", user=current_user)
-        flash(f"Organizer '{organizer.username}' has been approved.", 'success')
-    elif action == 'deny':
-        reason = request.form.get('reason')
-        if not reason:
-            flash('A reason is required to deny an application.', 'danger')
-            return redirect(url_for('admin_approvals'))
-        organizer.approval_status = 'rejected'
-        organizer.rejection_reason = reason
-        db.session.commit()
-        send_organizer_status_email(organizer, 'rejected', reason=reason)
-        log_audit_event("deny_organizer", f"Admin '{current_user.username}' denied organizer '{organizer.username}'. Reason: {reason}", user=current_user)
-        flash(f"Organizer '{organizer.username}' has been denied.", 'warning')
-        
-    return redirect(url_for('admin_approvals'))
-
-@app.route('/admin/audit-log')
-@login_required
-@admin_required
-def admin_audit_log():
-    logs = AuditLog.query.order_by(AuditLog.timestamp.desc()).all()
-    return render_template('admin_audit_log.html', logs=logs)
+@app.route('/help')
+def help_page():
+    return "<h1>Help Page</h1><p>Contact support@inwittix.com for assistance.</p>"
 
 if __name__ == '__main__':
     with app.app_context():
