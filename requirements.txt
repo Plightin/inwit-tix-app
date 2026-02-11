@@ -11,3 +11,4 @@ WeasyPrint
 Flask-Mail
 Flask-Limiter
 pytz
+requests
