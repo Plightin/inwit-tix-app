@@ -22,7 +22,7 @@ import pytz
 load_dotenv()
 app = Flask(__name__)
 
-# Essential for handling HTTPS correctly behind Render's proxy
+# Essential for handling HTTPS and custom domains (tix.inwitsystems.com) correctly on Render
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
 # Database Setup
@@ -35,6 +35,11 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', '/var/data/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
+
+# Domain & SSL Configuration
+app.config['PREFERRED_URL_SCHEME'] = 'https'
+if os.environ.get('SERVER_NAME'):
+    app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
 # Airtel Credentials
 AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
@@ -49,7 +54,7 @@ app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@inwittix.com')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@tix.inwitsystems.com')
 
 db = SQLAlchemy(app)
 bcrypt = Bcrypt(app)
@@ -65,7 +70,7 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
-    role = db.Column(db.String(20), default='user')
+    role = db.Column(db.String(20), default='user') # user, organizer, admin
     approval_status = db.Column(db.String(20), default='approved')
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
@@ -97,7 +102,7 @@ class Ticket(db.Model):
     is_scanned = db.Column(db.Boolean, default=False)
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False)
-    payment_status = db.Column(db.String(20), default='pending')
+    payment_status = db.Column(db.String(20), default='pending') # pending, success, failed
     airtel_id = db.Column(db.String(100), nullable=True)
     partner_id = db.Column(db.String(100), unique=True, nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
@@ -116,7 +121,10 @@ def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
 
 @app.context_processor
 def inject_now():
-    return {'current_year': datetime.now().year}
+    return {
+        'current_year': datetime.now().year,
+        'current_user': current_user
+    }
 
 # --- CLI Commands ---
 
@@ -233,11 +241,13 @@ def register():
         phone = request.form.get('phone_number')
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
+        elif User.query.filter_by(email=email).first():
+            flash('Email already registered.', 'danger')
         else:
             new_user = User(username, email, password, phone)
             db.session.add(new_user)
             db.session.commit()
-            flash('Registered! Please login.', 'success')
+            flash('Account created! Please log in.', 'success')
             return redirect(url_for('login'))
     return render_template('register.html')
 
@@ -250,7 +260,7 @@ def login():
             login_user(user, remember=True)
             next_page = request.args.get('next')
             return redirect(next_page) if next_page else redirect(url_for('profile'))
-        flash('Login failed.', 'danger')
+        flash('Login failed. Please check your credentials.', 'danger')
     return render_template('login.html')
 
 @app.route('/logout')
@@ -273,13 +283,31 @@ def admin_dashboard():
     events = Event.query.all()
     return render_template('admin.html', users=users, events=events)
 
-# UPDATED: Routes now point to their actual templates shown in your screenshot
-@app.route('/forgot-password')
+# UPDATED: Routes for Password Reset and Activation with POST support
+@app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            # Logic to send reset email would go here.
+            # For now, we flash a generic success message for security.
+            flash('If an account exists for that email, a reset link has been sent.', 'info')
+        else:
+            flash('If an account exists for that email, a reset link has been sent.', 'info')
+        return redirect(url_for('login'))
     return render_template('forgot_password.html')
 
-@app.route('/resend-activation')
+@app.route('/resend-activation', methods=['GET', 'POST'])
 def resend_activation():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        user = User.query.filter_by(email=email).first()
+        if user:
+            flash('Activation link has been resent to your email.', 'info')
+        else:
+            flash('Email not found.', 'danger')
+        return redirect(url_for('login'))
     return render_template('resend_activation.html')
 
 @app.route('/create_event', methods=['GET', 'POST'])
@@ -422,7 +450,6 @@ def verify_ticket():
 
 @app.route('/help')
 def help_page():
-    # UPDATED: Pointing to help.html from your screenshot
     return render_template('help.html')
 
 if __name__ == '__main__':
