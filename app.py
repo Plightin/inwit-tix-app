@@ -36,7 +36,7 @@ app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', '/var/data/uploads
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
 
-# Airtel Credentials (Configured via Render Environment Variables)
+# Airtel Credentials
 AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
 AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '2a6f724c-c42e-4ef7-9b43-8a3c20868a26')
 AIRTEL_BASE_URL = os.environ.get('AIRTEL_BASE_URL', 'https://openapiuat.airtel.co.zm')
@@ -65,8 +65,8 @@ class User(db.Model, UserMixin):
     email = db.Column(db.String(120), unique=True, nullable=False)
     password_hash = db.Column(db.String(128), nullable=False)
     phone_number = db.Column(db.String(15), nullable=True)
-    role = db.Column(db.String(20), default='user') # user, organizer, admin
-    approval_status = db.Column(db.String(20), default='approved') # approved, pending
+    role = db.Column(db.String(20), default='user')
+    approval_status = db.Column(db.String(20), default='approved')
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
@@ -97,7 +97,7 @@ class Ticket(db.Model):
     is_scanned = db.Column(db.Boolean, default=False)
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False)
-    payment_status = db.Column(db.String(20), default='pending') # pending, success, failed
+    payment_status = db.Column(db.String(20), default='pending')
     airtel_id = db.Column(db.String(100), nullable=True)
     partner_id = db.Column(db.String(100), unique=True, nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
@@ -108,7 +108,6 @@ class Ticket(db.Model):
 
 @app.template_filter('to_local_time')
 def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
-    """Converts UTC datetime to CAT (Central Africa Time) for display."""
     if not dt: return ""
     tz = pytz.timezone('Africa/Lusaka')
     if dt.tzinfo is None:
@@ -147,21 +146,15 @@ def generate_qr_code(ticket_uid):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def create_and_email_ticket(ticket):
-    """Generates PDF and sends email to the ticket owner."""
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
-        
-        # Render PDF
         html_for_pdf = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
         pdf_bytes = HTML(string=html_for_pdf, base_url=request.url_root).write_pdf()
-        
-        # Render Email
         email_html = render_template('email_ticket.html', ticket=ticket, logo_url=logo_url)
-        
         msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
         msg.html = email_html
-        msg.attach(f"inwit-tix-ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
+        msg.attach(f"ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
         mail.send(msg)
         return True
     except Exception as e:
@@ -187,7 +180,6 @@ def get_airtel_token():
 def initiate_ussd_push(msisdn, amount, partner_id):
     token = get_airtel_token()
     if not token: return None, "Auth Failed"
-    
     url = f"{AIRTEL_BASE_URL}/merchant/v1/payments/"
     headers = {
         "Content-Type": "application/json",
@@ -196,24 +188,14 @@ def initiate_ussd_push(msisdn, amount, partner_id):
         "X-Currency": AIRTEL_CURRENCY,
         "Authorization": f"Bearer {token}"
     }
-    
     clean_phone = msisdn.replace("+", "").replace(" ", "")
     if clean_phone.startswith('260'): clean_phone = clean_phone[3:]
     elif clean_phone.startswith('0'): clean_phone = clean_phone[1:]
-
     payload = {
         "reference": "Inwit Ticket Purchase",
-        "subscriber": {
-            "country": AIRTEL_COUNTRY,
-            "currency": AIRTEL_CURRENCY,
-            "msisdn": clean_phone
-        },
-        "transaction": {
-            "amount": amount,
-            "id": partner_id
-        }
+        "subscriber": {"country": AIRTEL_COUNTRY, "currency": AIRTEL_CURRENCY, "msisdn": clean_phone},
+        "transaction": {"amount": amount, "id": partner_id}
     }
-    
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=15)
         data = response.json()
@@ -229,19 +211,16 @@ def initiate_ussd_push(msisdn, amount, partner_id):
 def index():
     query = request.args.get('q', '')
     category = request.args.get('category', '')
-    
     events_query = Event.query
     if query:
         events_query = events_query.filter(Event.name.ilike(f'%{query}%') | Event.venue.ilike(f'%{query}%'))
     if category:
         events_query = events_query.filter_by(category=category)
-        
     events = events_query.order_by(Event.event_datetime.asc()).all()
     return render_template('index.html', events=events, query=query, category=category)
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -252,7 +231,6 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
-        
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
         else:
@@ -270,7 +248,8 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
             login_user(user, remember=True)
-            return redirect(url_for('profile'))
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('profile'))
         flash('Login failed.', 'danger')
     return render_template('login.html')
 
@@ -284,6 +263,25 @@ def logout():
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
+@app.route('/admin')
+@login_required
+def admin_dashboard():
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    users = User.query.all()
+    events = Event.query.all()
+    return render_template('admin.html', users=users, events=events)
+
+# Missing endpoints that were causing BuildErrors in login.html
+@app.route('/forgot-password')
+def forgot_password():
+    return render_template('coming_soon.html')
+
+@app.route('/resend-activation')
+def resend_activation():
+    return render_template('coming_soon.html')
+
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
@@ -292,8 +290,9 @@ def create_event():
         if file and allowed_file(file.filename):
             filename = secure_filename(file.filename)
             unique_name = f"{uuid.uuid4().hex[:10]}_{filename}"
+            if not os.path.exists(app.config['UPLOAD_FOLDER']):
+                os.makedirs(app.config['UPLOAD_FOLDER'])
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
-            
             new_event = Event(
                 name=request.form.get('name'),
                 description=request.form.get('description'),
@@ -323,12 +322,10 @@ def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
     phone = request.form.get('phone_number')
-
     price = 0
     if ticket_type == 'Ordinary': price = event.price_ordinary
     elif ticket_type == 'VIP': price = event.price_vip
     elif ticket_type == 'VVIP': price = event.price_vvip
-
     partner_id = str(uuid.uuid4())
     new_ticket = Ticket(
         owner=current_user, event=event, ticket_type=ticket_type,
@@ -336,7 +333,6 @@ def purchase_ticket(event_id):
     )
     db.session.add(new_ticket)
     db.session.commit()
-
     airtel_id, msg = initiate_ussd_push(phone, price, partner_id)
     if airtel_id:
         new_ticket.airtel_id = airtel_id
@@ -354,13 +350,11 @@ def airtel_callback():
     data = request.json
     txn = data.get('transaction', {})
     partner_id = txn.get('id')
-    status = txn.get('status') # 'TS' = Success
-
+    status = txn.get('status')
     ticket = Ticket.query.filter_by(partner_id=partner_id).first()
     if ticket:
         if status == 'TS':
             ticket.payment_status = 'success'
-            # Trigger email once paid
             with app.app_context():
                 create_and_email_ticket(ticket)
         else:
@@ -404,7 +398,9 @@ def resend_email_ticket(ticket_id):
 @app.route('/scan')
 @login_required
 def scanner():
-    if current_user.role not in ['organizer', 'admin']: return redirect(url_for('index'))
+    if current_user.role not in ['organizer', 'admin']: 
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
     return render_template('scan.html')
 
 @app.route('/verify_ticket', methods=['POST'])
@@ -426,7 +422,7 @@ def verify_ticket():
 
 @app.route('/help')
 def help_page():
-    return "<h1>Help Page</h1><p>Contact support@inwittix.com for assistance.</p>"
+    return render_template('coming_soon.html')
 
 if __name__ == '__main__':
     with app.app_context():
