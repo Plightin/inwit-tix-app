@@ -273,14 +273,14 @@ def admin_dashboard():
     events = Event.query.all()
     return render_template('admin.html', users=users, events=events)
 
-# Missing endpoints that were causing BuildErrors in login.html
+# UPDATED: Routes now point to their actual templates shown in your screenshot
 @app.route('/forgot-password')
 def forgot_password():
-    return render_template('coming_soon.html')
+    return render_template('forgot_password.html')
 
 @app.route('/resend-activation')
 def resend_activation():
-    return render_template('coming_soon.html')
+    return render_template('resend_activation.html')
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
@@ -422,7 +422,8 @@ def verify_ticket():
 
 @app.route('/help')
 def help_page():
-    return render_template('coming_soon.html')
+    # UPDATED: Pointing to help.html from your screenshot
+    return render_template('help.html')
 
 if __name__ == '__main__':
     with app.app_context():
