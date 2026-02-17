@@ -138,9 +138,11 @@ def inject_now():
 def init_db():
     with app.app_context():
         db.create_all()
+        # Create a default admin user if it doesn't exist
         admin_email = "admin@inwittix.com"
         admin_user = User.query.filter_by(email=admin_email).first()
         if not admin_user:
+            # Default password is 'admin123'. Email confirmed by default for admin.
             new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True, is_suspended=False)
             db.session.add(new_admin)
             db.session.commit()
@@ -173,9 +175,14 @@ def create_and_email_ticket(ticket):
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
+        
+        # Render PDF
         html_for_pdf = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
         pdf_bytes = HTML(string=html_for_pdf, base_url=request.url_root).write_pdf()
+        
+        # Render Email
         email_html = render_template('email_ticket.html', ticket=ticket, logo_url=logo_url)
+        
         msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
         msg.html = email_html
         msg.attach(f"ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
@@ -261,6 +268,7 @@ def index():
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
+    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -271,7 +279,6 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
-        
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
         elif User.query.filter_by(email=email).first():
@@ -337,6 +344,9 @@ def api_test_payment():
     Input JSON: { "phone": "097...", "amount": 1.0 }
     """
     data = request.json
+    if not data:
+        return jsonify({"error": "Invalid JSON"}), 400
+        
     msisdn = data.get('phone')
     amount = data.get('amount', 1.0)
     partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
@@ -522,19 +532,3 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
-```
-
-### How to use this new endpoint in Postman:
-
-1.  **Method:** `POST`
-2.  **URL:** `https://tix.inwitsystems.com/api/test-payment`
-3.  **Body:** Select `raw` and `JSON`.
-    ```json
-    {
-      "phone": "097...", 
-      "amount": 1.0
-    }
-    ```
-4.  **Send:** You will get a JSON response containing the exact `request` payload sent to Airtel and the `response` received from them.
-
-This will allow you to generate all the evidence you need for your Excel sheet without logging into the app.
