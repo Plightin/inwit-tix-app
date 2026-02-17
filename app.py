@@ -439,17 +439,14 @@ def purchase_ticket(event_id):
 
 @app.route('/airtel/callback', methods=['POST'])
 def airtel_callback():
-    """Endpoint for Airtel to notify Inwit Tix of payment completion."""
     data = request.json
     txn = data.get('transaction', {})
     partner_id = txn.get('id')
-    status = txn.get('status') # 'TS' = Success
-
+    status = txn.get('status')
     ticket = Ticket.query.filter_by(partner_id=partner_id).first()
     if ticket:
         if status == 'TS':
             ticket.payment_status = 'success'
-            # Trigger email once paid
             with app.app_context():
                 create_and_email_ticket(ticket)
         else:
@@ -519,6 +516,7 @@ def verify_ticket():
 
 @app.route('/help')
 def help_page():
+    # UPDATED: Points to help.html found in your files
     return render_template('help.html')
 
 if __name__ == '__main__':
