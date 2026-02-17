@@ -74,15 +74,18 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), default='user') # user, organizer, admin
     approval_status = db.Column(db.String(20), default='approved')
+    # NEW: Added missing field to match database schema
+    is_email_confirmed = db.Column(db.Boolean, default=False, nullable=False)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, phone_number=None, role='user'):
+    def __init__(self, username, email, password, phone_number=None, role='user', is_email_confirmed=False):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         self.phone_number = phone_number
         self.role = role
+        self.is_email_confirmed = is_email_confirmed
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -139,8 +142,8 @@ def init_db():
         admin_email = "admin@inwittix.com"
         admin_user = User.query.filter_by(email=admin_email).first()
         if not admin_user:
-            # Default password is 'admin123' - change this immediately after logging in!
-            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin")
+            # Default password is 'admin123'. Email confirmed by default for admin.
+            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True)
             db.session.add(new_admin)
             db.session.commit()
             print(f"Created default admin user: {admin_email}")
@@ -295,8 +298,11 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
             login_user(user, remember=True)
+            # Handle the 'next' parameter safely
             next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('profile'))
+            if not next_page or not next_page.startswith('/'):
+                next_page = url_for('profile')
+            return redirect(next_page)
         flash('Login failed. Please check your credentials.', 'danger')
     return render_template('login.html')
 
@@ -507,7 +513,7 @@ def verify_ticket():
     elif ticket.is_scanned:
         flash(f"Already Scanned! Used by {ticket.owner.username}.", 'warning')
     elif ticket.payment_status != 'success':
-        flash("Unpaid Ticket. Verification denied.", 'danger')
+        flash("Unpaid Ticket.", 'danger')
     else:
         ticket.is_scanned = True
         db.session.commit()
@@ -516,7 +522,6 @@ def verify_ticket():
 
 @app.route('/help')
 def help_page():
-    # UPDATED: Points to help.html found in your files
     return render_template('help.html')
 
 if __name__ == '__main__':
