@@ -2,33 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#002366">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>{% block title %}Inwit Tix{% endblock %}</title>
+    
+    <!-- PWA Manifest & Icons -->
+    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
+    <link rel="apple-touch-icon" href="{{ url_for('static', filename='logo.png') }}">
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
+    
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
 </head>
 <body>
     <nav>
-        <div class="nav-container">
-            <a href="{{ url_for('index') }}" class="brand-container">
+        <div class="container">
+            <a href="{{ url_for('index') }}" class="brand">
                 <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo" class="brand-logo">
                 <div class="separator"></div>
                 <span class="brand-motto">Your Digital Gateway to Events</span>
             </a>
             <ul>
                 <li><a href="{{ url_for('index') }}">Events</a></li>
+                <li><a href="{{ url_for('help_page') }}">Help</a></li>
+                
                 {% if current_user.is_authenticated %}
                     <li><a href="{{ url_for('profile') }}">My Profile</a></li>
+                    <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
                     
-                    <!-- Show organizer links only if approved -->
-                    {% if current_user.role == 'organizer' and current_user.approval_status == 'approved' %}
-                        <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
-                        <li><a href="{{ url_for('scanner') }}">Scan Ticket</a></li>
+                    {% if current_user.role in ['organizer', 'admin'] %}
+                        <li><a href="{{ url_for('scanner') }}">Scan</a></li>
                     {% endif %}
                     
-                    <!-- Show admin link for admins -->
                     {% if current_user.role == 'admin' %}
                         <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
+                        <li><a href="{{ url_for('airtel_tester') }}">API Test</a></li>
                     {% endif %}
                     
                     <li><a href="{{ url_for('logout') }}">Logout</a></li>
@@ -36,11 +46,11 @@
                     <li><a href="{{ url_for('login') }}">Login</a></li>
                     <li><a href="{{ url_for('register') }}">Register</a></li>
                 {% endif %}
-                 <li><a href="{{ url_for('help_page') }}">Help</a></li>
             </ul>
         </div>
     </nav>
-    <main class="main-container">
+
+    <main class="container">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 <div class="flash-messages">
@@ -52,8 +62,20 @@
         {% endwith %}
         {% block content %}{% endblock %}
     </main>
-    <footer class="footer">
+
+    <footer>
         <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
+
+    <!-- Register Service Worker for PWA functionality -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/static/sw.js')
+                .then(reg => console.log('Service Worker registered'))
+                .catch(err => console.log('Service Worker failed', err));
+            });
+        }
+    </script>
 </body>
 </html>
