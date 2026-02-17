@@ -135,6 +135,18 @@ def inject_now():
 def init_db():
     with app.app_context():
         db.create_all()
+        # Create a default admin user if it doesn't exist
+        admin_email = "admin@inwittix.com"
+        admin_user = User.query.filter_by(email=admin_email).first()
+        if not admin_user:
+            # Default password is 'admin123' - change this immediately after logging in!
+            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin")
+            db.session.add(new_admin)
+            db.session.commit()
+            print(f"Created default admin user: {admin_email}")
+        else:
+            print("Admin user already exists.")
+            
     print("Database initialized.")
 
 # --- Helper Functions ---
@@ -189,9 +201,10 @@ def get_airtel_token():
     }
     try:
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-        return response.json().get('access_token'), response.json()
+        return response.json().get('access_token')
     except Exception as e:
-        return None, str(e)
+        print(f"Airtel Auth Error: {e}")
+        return None
 
 def initiate_ussd_push(msisdn, amount, partner_id):
     """Initiates a USSD push and returns raw response data for debugging/testing."""
@@ -251,7 +264,7 @@ def index():
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    """Serves files from the persistent storage volume."""
+    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -300,6 +313,7 @@ def profile():
 @app.route('/admin')
 @login_required
 def admin_dashboard():
+    """Route for site administrators to manage events and users."""
     if current_user.role != 'admin':
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('index'))
@@ -332,8 +346,11 @@ def forgot_password():
     if request.method == 'POST':
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
-        # Security: don't reveal if user exists or not
-        flash('If an account exists for that email, a reset link has been sent.', 'info')
+        if user:
+            # Logic to send reset email would go here.
+            flash('If an account exists for that email, a reset link has been sent.', 'info')
+        else:
+            flash('If an account exists for that email, a reset link has been sent.', 'info')
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
 
@@ -376,7 +393,7 @@ def create_event():
             )
             db.session.add(new_event)
             db.session.commit()
-            flash('Event created successfully!', 'success')
+            flash('Event created!', 'success')
             return redirect(url_for('index'))
     return render_template('create_event.html')
 
@@ -422,24 +439,23 @@ def purchase_ticket(event_id):
 
 @app.route('/airtel/callback', methods=['POST'])
 def airtel_callback():
-    """Handles async payment confirmation from Airtel."""
+    """Endpoint for Airtel to notify Inwit Tix of payment completion."""
     data = request.json
-    print(f"AIRTEL CALLBACK RECEIVED: {json.dumps(data)}")
-    
     txn = data.get('transaction', {})
     partner_id = txn.get('id')
-    status = txn.get('status') # 'TS' indicates Success
+    status = txn.get('status') # 'TS' = Success
 
     ticket = Ticket.query.filter_by(partner_id=partner_id).first()
     if ticket:
         if status == 'TS':
             ticket.payment_status = 'success'
+            # Trigger email once paid
             with app.app_context():
                 create_and_email_ticket(ticket)
         else:
             ticket.payment_status = 'failed'
         db.session.commit()
-    return jsonify({"status": "received"}), 200
+    return jsonify({"status": "ok"}), 200
 
 @app.route('/ticket/<int:ticket_id>')
 @login_required
