@@ -118,6 +118,7 @@ class Ticket(db.Model):
 
 @app.template_filter('to_local_time')
 def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
+    """Converts UTC datetime to CAT (Central Africa Time) for display."""
     if not dt: return ""
     tz = pytz.timezone('Africa/Lusaka')
     if dt.tzinfo is None:
@@ -168,6 +169,7 @@ def generate_qr_code(ticket_uid):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def create_and_email_ticket(ticket):
+    """Generates PDF and sends email to the ticket owner."""
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
@@ -194,7 +196,7 @@ def get_airtel_token():
     }
     try:
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-        # UPDATED: Return both token and full response for debugging
+        # Return both token and full response for debugging
         if response.status_code == 200:
             return response.json().get('access_token'), response.json()
         return None, response.json()
@@ -269,6 +271,7 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
+        
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
         elif User.query.filter_by(email=email).first():
@@ -325,6 +328,26 @@ def airtel_tester():
         partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
         test_result, raw_req = initiate_ussd_push(msisdn, amount, partner_id)
     return render_template('airtel_tester.html', result=test_result, request_body=raw_req)
+
+# NEW: Public JSON API endpoint for Postman testing
+@app.route('/api/test-payment', methods=['POST'])
+def api_test_payment():
+    """
+    Public API endpoint to trigger USSD push.
+    Input JSON: { "phone": "097...", "amount": 1.0 }
+    """
+    data = request.json
+    msisdn = data.get('phone')
+    amount = data.get('amount', 1.0)
+    partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
+    
+    result, payload = initiate_ussd_push(msisdn, amount, partner_id)
+    
+    return jsonify({
+        "status": "initiated",
+        "request_sent_to_airtel": payload,
+        "response_from_airtel": result
+    })
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -402,7 +425,6 @@ def purchase_ticket(event_id):
     db.session.add(new_ticket)
     db.session.commit()
     airtel_id, msg = initiate_ussd_push(phone, price, partner_id)
-    # Check if the response contains the expected 'status' and 'success' fields
     if isinstance(airtel_id, dict) and airtel_id.get('status', {}).get('success'):
         new_ticket.airtel_id = airtel_id.get('data', {}).get('transaction', {}).get('id')
         db.session.commit()
@@ -411,11 +433,9 @@ def purchase_ticket(event_id):
     else:
         db.session.delete(new_ticket)
         db.session.commit()
-        # Handle cases where airtel_id might be None or a different structure on failure
-        error_msg = msg # msg now contains the raw response payload if initiate_ussd_push failed
+        error_msg = msg
         if isinstance(airtel_id, dict):
              error_msg = airtel_id.get('status', {}).get('message', 'Airtel API Error')
-        
         flash(f'Payment Failed: {error_msg}', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
 
@@ -502,3 +522,19 @@ if __name__ == '__main__':
     with app.app_context():
         db.create_all()
     app.run(debug=True)
+```
+
+### How to use this new endpoint in Postman:
+
+1.  **Method:** `POST`
+2.  **URL:** `https://tix.inwitsystems.com/api/test-payment`
+3.  **Body:** Select `raw` and `JSON`.
+    ```json
+    {
+      "phone": "097...", 
+      "amount": 1.0
+    }
+    ```
+4.  **Send:** You will get a JSON response containing the exact `request` payload sent to Airtel and the `response` received from them.
+
+This will allow you to generate all the evidence you need for your Excel sheet without logging into the app.
