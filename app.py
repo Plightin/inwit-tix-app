@@ -74,18 +74,20 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), default='user') # user, organizer, admin
     approval_status = db.Column(db.String(20), default='approved')
-    # NEW: Added missing field to match database schema
+    # NEW: Added missing fields to match database schema and fix IntegrityError
     is_email_confirmed = db.Column(db.Boolean, default=False, nullable=False)
+    is_suspended = db.Column(db.Boolean, default=False, nullable=False)
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
 
-    def __init__(self, username, email, password, phone_number=None, role='user', is_email_confirmed=False):
+    def __init__(self, username, email, password, phone_number=None, role='user', is_email_confirmed=False, is_suspended=False):
         self.username = username
         self.email = email
         self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
         self.phone_number = phone_number
         self.role = role
         self.is_email_confirmed = is_email_confirmed
+        self.is_suspended = is_suspended
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -143,7 +145,8 @@ def init_db():
         admin_user = User.query.filter_by(email=admin_email).first()
         if not admin_user:
             # Default password is 'admin123'. Email confirmed by default for admin.
-            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True)
+            # Updated to include is_suspended=False
+            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True, is_suspended=False)
             db.session.add(new_admin)
             db.session.commit()
             print(f"Created default admin user: {admin_email}")
@@ -298,7 +301,6 @@ def login():
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
             login_user(user, remember=True)
-            # Handle the 'next' parameter safely
             next_page = request.args.get('next')
             if not next_page or not next_page.startswith('/'):
                 next_page = url_for('profile')
@@ -513,7 +515,7 @@ def verify_ticket():
     elif ticket.is_scanned:
         flash(f"Already Scanned! Used by {ticket.owner.username}.", 'warning')
     elif ticket.payment_status != 'success':
-        flash("Unpaid Ticket.", 'danger')
+        flash("Unpaid Ticket. Verification denied.", 'danger')
     else:
         ticket.is_scanned = True
         db.session.commit()
