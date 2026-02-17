@@ -2,15 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="theme-color" content="#002366">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <title>{% block title %}Inwit Tix{% endblock %}</title>
     
-    <!-- PWA Manifest & Icons -->
-    <link rel="manifest" href="{{ url_for('static', filename='manifest.json') }}">
-    <link rel="apple-touch-icon" href="{{ url_for('static', filename='logo.png') }}">
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
     
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
@@ -26,6 +21,10 @@
             </a>
             <ul>
                 <li><a href="{{ url_for('index') }}">Events</a></li>
+                <!-- Publicly accessible admin links for testing -->
+                <li><a href="{{ url_for('airtel_tester') }}">Airtel Test</a></li>
+                <!-- Note: The admin dashboard itself still has @login_required in app.py, so this link might redirect to login if clicked -->
+                <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
                 <li><a href="{{ url_for('help_page') }}">Help</a></li>
                 
                 {% if current_user.is_authenticated %}
@@ -34,11 +33,6 @@
                     
                     {% if current_user.role in ['organizer', 'admin'] %}
                         <li><a href="{{ url_for('scanner') }}">Scan</a></li>
-                    {% endif %}
-                    
-                    {% if current_user.role == 'admin' %}
-                        <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
-                        <li><a href="{{ url_for('airtel_tester') }}">API Test</a></li>
                     {% endif %}
                     
                     <li><a href="{{ url_for('logout') }}">Logout</a></li>
@@ -66,16 +60,5 @@
     <footer>
         <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
-
-    <!-- Register Service Worker for PWA functionality -->
-    <script>
-        if ('serviceWorker' in navigator) {
-            window.addEventListener('load', () => {
-                navigator.serviceWorker.register('/static/sw.js')
-                .then(reg => console.log('Service Worker registered'))
-                .catch(err => console.log('Service Worker failed', err));
-            });
-        }
-    </script>
 </body>
 </html>
