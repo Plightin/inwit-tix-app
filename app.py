@@ -329,13 +329,10 @@ def admin_dashboard():
     events = Event.query.all()
     return render_template('admin.html', users=users, events=events)
 
-# NEW: Admin route for executing Airtel API test cases
-@app.route('/admin/airtel-tester', methods=['GET', 'POST'])
-@login_required
+# UPDATED: Airtel Tester is now public
+@app.route('/airtel-tester', methods=['GET', 'POST'])
 def airtel_tester():
-    if current_user.role != 'admin':
-        return "Unauthorized", 403
-        
+    """Public route for executing Airtel API test cases."""
     test_result = None
     raw_req = None
     
@@ -447,14 +444,19 @@ def purchase_ticket(event_id):
 
 @app.route('/airtel/callback', methods=['POST'])
 def airtel_callback():
+    """Endpoint for Airtel to notify Inwit Tix of payment completion."""
     data = request.json
+    print(f"AIRTEL CALLBACK RECEIVED: {json.dumps(data)}")
+    
     txn = data.get('transaction', {})
     partner_id = txn.get('id')
-    status = txn.get('status')
+    status = txn.get('status') # 'TS' = Success
+
     ticket = Ticket.query.filter_by(partner_id=partner_id).first()
     if ticket:
         if status == 'TS':
             ticket.payment_status = 'success'
+            # Trigger email once paid
             with app.app_context():
                 create_and_email_ticket(ticket)
         else:
