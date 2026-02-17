@@ -33,7 +33,6 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
-# Use Render's persistent disk path
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', '/var/data/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -43,7 +42,7 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 if os.environ.get('SERVER_NAME'):
     app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
-# Airtel Credentials (Staging defaults from screenshot)
+# Airtel Credentials (Staging defaults)
 AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
 AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '2a6f724c-c42e-4ef7-9b43-8a3c20868a26')
 AIRTEL_BASE_URL = os.environ.get('AIRTEL_BASE_URL', 'https://openapiuat.airtel.co.zm')
@@ -74,7 +73,6 @@ class User(db.Model, UserMixin):
     phone_number = db.Column(db.String(15), nullable=True)
     role = db.Column(db.String(20), default='user') # user, organizer, admin
     approval_status = db.Column(db.String(20), default='approved')
-    # NEW: Added missing fields to match database schema and fix IntegrityError
     is_email_confirmed = db.Column(db.Boolean, default=False, nullable=False)
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
     events = db.relationship('Event', backref='creator', lazy=True)
@@ -120,7 +118,6 @@ class Ticket(db.Model):
 
 @app.template_filter('to_local_time')
 def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
-    """Converts UTC datetime to CAT (Central Africa Time) for display."""
     if not dt: return ""
     tz = pytz.timezone('Africa/Lusaka')
     if dt.tzinfo is None:
@@ -140,19 +137,15 @@ def inject_now():
 def init_db():
     with app.app_context():
         db.create_all()
-        # Create a default admin user if it doesn't exist
         admin_email = "admin@inwittix.com"
         admin_user = User.query.filter_by(email=admin_email).first()
         if not admin_user:
-            # Default password is 'admin123'. Email confirmed by default for admin.
-            # Updated to include is_suspended=False
             new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True, is_suspended=False)
             db.session.add(new_admin)
             db.session.commit()
             print(f"Created default admin user: {admin_email}")
         else:
             print("Admin user already exists.")
-            
     print("Database initialized.")
 
 # --- Helper Functions ---
@@ -175,18 +168,12 @@ def generate_qr_code(ticket_uid):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def create_and_email_ticket(ticket):
-    """Generates PDF and sends email to the ticket owner."""
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
-        
-        # Render PDF
         html_for_pdf = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
         pdf_bytes = HTML(string=html_for_pdf, base_url=request.url_root).write_pdf()
-        
-        # Render Email
         email_html = render_template('email_ticket.html', ticket=ticket, logo_url=logo_url)
-        
         msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
         msg.html = email_html
         msg.attach(f"ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
@@ -207,14 +194,19 @@ def get_airtel_token():
     }
     try:
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-        return response.json().get('access_token')
+        # UPDATED: Return both token and full response for debugging
+        if response.status_code == 200:
+            return response.json().get('access_token'), response.json()
+        return None, response.json()
     except Exception as e:
         print(f"Airtel Auth Error: {e}")
-        return None
+        return None, {"error": str(e)}
 
 def initiate_ussd_push(msisdn, amount, partner_id):
     """Initiates a USSD push and returns raw response data for debugging/testing."""
     token, auth_res = get_airtel_token()
+    
+    # If no token, return the error details from auth
     if not token: 
         return {"error": "Auth Failed", "details": auth_res}, {"auth_status": "failed"}
     
@@ -227,7 +219,6 @@ def initiate_ussd_push(msisdn, amount, partner_id):
         "Authorization": f"Bearer {token}"
     }
     
-    # Format phone number for Airtel API
     clean_phone = msisdn.replace("+", "").replace(" ", "")
     if clean_phone.startswith('260'): clean_phone = clean_phone[3:]
     elif clean_phone.startswith('0'): clean_phone = clean_phone[1:]
@@ -258,19 +249,16 @@ def initiate_ussd_push(msisdn, amount, partner_id):
 def index():
     query = request.args.get('q', '')
     category = request.args.get('category', '')
-    
     events_query = Event.query
     if query:
         events_query = events_query.filter(Event.name.ilike(f'%{query}%') | Event.venue.ilike(f'%{query}%'))
     if category:
         events_query = events_query.filter_by(category=category)
-        
     events = events_query.order_by(Event.event_datetime.asc()).all()
     return render_template('index.html', events=events, query=query, category=category)
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -281,7 +269,6 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
-        
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
         elif User.query.filter_by(email=email).first():
@@ -321,7 +308,6 @@ def profile():
 @app.route('/admin')
 @login_required
 def admin_dashboard():
-    """Route for site administrators to manage events and users."""
     if current_user.role != 'admin':
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('index'))
@@ -329,21 +315,15 @@ def admin_dashboard():
     events = Event.query.all()
     return render_template('admin.html', users=users, events=events)
 
-# UPDATED: Airtel Tester is now public
 @app.route('/airtel-tester', methods=['GET', 'POST'])
 def airtel_tester():
-    """Public route for executing Airtel API test cases."""
     test_result = None
     raw_req = None
-    
     if request.method == 'POST':
         msisdn = request.form.get('phone')
         amount = float(request.form.get('amount', 1))
         partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
-        
-        # Execute push with enhanced logging
         test_result, raw_req = initiate_ussd_push(msisdn, amount, partner_id)
-        
     return render_template('airtel_tester.html', result=test_result, request_body=raw_req)
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
@@ -352,7 +332,6 @@ def forgot_password():
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
         if user:
-            # Logic to send reset email would go here.
             flash('If an account exists for that email, a reset link has been sent.', 'info')
         else:
             flash('If an account exists for that email, a reset link has been sent.', 'info')
@@ -381,9 +360,7 @@ def create_event():
             unique_name = f"{uuid.uuid4().hex[:10]}_{filename}"
             if not os.path.exists(app.config['UPLOAD_FOLDER']):
                 os.makedirs(app.config['UPLOAD_FOLDER'])
-                
             file.save(os.path.join(app.config['UPLOAD_FOLDER'], unique_name))
-            
             new_event = Event(
                 name=request.form.get('name'),
                 description=request.form.get('description'),
@@ -413,12 +390,10 @@ def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
     phone = request.form.get('phone_number')
-
     price = 0
     if ticket_type == 'Ordinary': price = event.price_ordinary
     elif ticket_type == 'VIP': price = event.price_vip
     elif ticket_type == 'VVIP': price = event.price_vvip
-
     partner_id = str(uuid.uuid4())
     new_ticket = Ticket(
         owner=current_user, event=event, ticket_type=ticket_type,
@@ -426,37 +401,34 @@ def purchase_ticket(event_id):
     )
     db.session.add(new_ticket)
     db.session.commit()
-
-    # Initiate Airtel Payment
-    res_data, payload = initiate_ussd_push(phone, price, partner_id)
-    
-    if isinstance(res_data, dict) and res_data.get('status', {}).get('success'):
-        new_ticket.airtel_id = res_data.get('data', {}).get('transaction', {}).get('id')
+    airtel_id, msg = initiate_ussd_push(phone, price, partner_id)
+    # Check if the response contains the expected 'status' and 'success' fields
+    if isinstance(airtel_id, dict) and airtel_id.get('status', {}).get('success'):
+        new_ticket.airtel_id = airtel_id.get('data', {}).get('transaction', {}).get('id')
         db.session.commit()
         flash(f'USSD Push sent! Enter PIN on your phone to pay K{price}.', 'info')
         return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
     else:
         db.session.delete(new_ticket)
         db.session.commit()
-        error_msg = res_data.get('status', {}).get('message', 'Airtel API Error') if isinstance(res_data, dict) else "Connection failed"
+        # Handle cases where airtel_id might be None or a different structure on failure
+        error_msg = msg # msg now contains the raw response payload if initiate_ussd_push failed
+        if isinstance(airtel_id, dict):
+             error_msg = airtel_id.get('status', {}).get('message', 'Airtel API Error')
+        
         flash(f'Payment Failed: {error_msg}', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
 
 @app.route('/airtel/callback', methods=['POST'])
 def airtel_callback():
-    """Endpoint for Airtel to notify Inwit Tix of payment completion."""
     data = request.json
-    print(f"AIRTEL CALLBACK RECEIVED: {json.dumps(data)}")
-    
     txn = data.get('transaction', {})
     partner_id = txn.get('id')
-    status = txn.get('status') # 'TS' = Success
-
+    status = txn.get('status')
     ticket = Ticket.query.filter_by(partner_id=partner_id).first()
     if ticket:
         if status == 'TS':
             ticket.payment_status = 'success'
-            # Trigger email once paid
             with app.app_context():
                 create_and_email_ticket(ticket)
         else:
@@ -477,12 +449,10 @@ def view_ticket(ticket_id):
 def download_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     if ticket.owner != current_user: return "Unauthorized", 403
-    
     qr_code_img = generate_qr_code(ticket.ticket_uid)
     logo_url = url_for('static', filename='logo.png', _external=True)
     html_out = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
     pdf = HTML(string=html_out, base_url=request.url_root).write_pdf()
-    
     return send_file(BytesIO(pdf), mimetype='application/pdf', as_attachment=True, download_name=f'ticket-{ticket.id}.pdf')
 
 @app.route('/ticket/email/<int:ticket_id>')
@@ -496,7 +466,7 @@ def resend_email_ticket(ticket_id):
         if create_and_email_ticket(ticket):
             flash('Ticket emailed successfully!', 'success')
         else:
-            flash('Error sending email. Please check your settings.', 'danger')
+            flash('Error sending email.', 'danger')
     return redirect(url_for('view_ticket', ticket_id=ticket.id))
 
 @app.route('/scan')
@@ -517,7 +487,7 @@ def verify_ticket():
     elif ticket.is_scanned:
         flash(f"Already Scanned! Used by {ticket.owner.username}.", 'warning')
     elif ticket.payment_status != 'success':
-        flash("Unpaid Ticket. Verification denied.", 'danger')
+        flash("Unpaid Ticket.", 'danger')
     else:
         ticket.is_scanned = True
         db.session.commit()
