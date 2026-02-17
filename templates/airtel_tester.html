@@ -1,0 +1,62 @@
+{% extends 'layout.html' %}
+{% block title %}Airtel API Tester{% endblock %}
+
+{% block content %}
+<div style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+    <div style="background: white; border-radius: 1rem; padding: 30px; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+        <h1 style="color: #002366; margin-bottom: 10px;">Airtel Mobile Money Test Suite</h1>
+        <p style="color: #6b7280; margin-bottom: 30px;">Use this to execute Yafika Test Cases (TC01 - TC15) in the Staging Environment.</p>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 40px;">
+            <!-- Trigger Form -->
+            <div>
+                <h3 style="margin-bottom: 15px;">Initiate USSD Push</h3>
+                <form method="POST">
+                    <div style="margin-bottom: 15px;">
+                        <label style="display:block; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px;">Test Phone Number (MSISDN)</label>
+                        <input type="text" name="phone" placeholder="097..." style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;" required>
+                        <small style="color: #6b7280;">TC01 (Valid), TC12 (Unregistered), TC02 (Barred)</small>
+                    </div>
+                    <div style="margin-bottom: 20px;">
+                        <label style="display:block; font-size: 0.8rem; font-weight: bold; margin-bottom: 5px;">Amount (ZMW)</label>
+                        <input type="number" name="amount" value="1.00" step="0.01" style="width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 8px;">
+                    </div>
+                    <button type="submit" style="background: #e11d48; color: white; border: none; padding: 15px 30px; border-radius: 8px; font-weight: bold; cursor: pointer; width: 100%;">
+                        Send USSD Push Request
+                    </button>
+                </form>
+
+                <div style="margin-top: 40px; padding: 20px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                    <h4 style="margin-top: 0;">TC15: Callback Simulation</h4>
+                    <p style="font-size: 0.85rem; color: #475569;">To test if your system processes successful payments, copy a <strong>Transaction ID</strong> from a real response and send it to your callback endpoint using a tool like Postman.</p>
+                    <code style="font-size: 0.75rem; display: block; background: #eee; padding: 10px; border-radius: 5px;">
+                        POST /airtel/callback <br>
+                        { "transaction": { "id": "YOUR_ID", "status": "TS" } }
+                    </code>
+                </div>
+            </div>
+
+            <!-- Results View -->
+            <div>
+                <h3 style="margin-bottom: 15px;">API Inspection (Logs)</h3>
+                
+                {% if result %}
+                    <div style="margin-bottom: 20px;">
+                        <p style="font-weight: bold; font-size: 0.9rem; color: #1e293b;">Last Request (JSON):</p>
+                        <pre style="background: #1e293b; color: #38bdf8; padding: 15px; border-radius: 8px; font-size: 0.8rem; overflow-x: auto;">{{ request_body | tojson(indent=2) }}</pre>
+                    </div>
+
+                    <div>
+                        <p style="font-weight: bold; font-size: 0.9rem; color: #1e293b;">Airtel Response (JSON):</p>
+                        <pre style="background: #1e293b; color: #4ade80; padding: 15px; border-radius: 8px; font-size: 0.8rem; overflow-x: auto;">{{ result | tojson(indent=2) }}</pre>
+                    </div>
+                {% else %}
+                    <div style="height: 300px; border: 2px dashed #e2e8f0; display: flex; align-items: center; justify-content: center; color: #94a3b8; border-radius: 8px;">
+                        Waiting for test initiation...
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
