@@ -396,11 +396,23 @@ def suspend_user(user_id):
     if user.id == current_user.id:
         flash("You cannot suspend yourself.", 'warning')
     else:
-        # Toggle suspension status
-        user.is_suspended = not user.is_suspended
+        user.is_suspended = True
         db.session.commit()
-        action = "suspended" if user.is_suspended else "unsuspended"
-        flash(f"User {user.username} has been {action}.", 'success')
+        flash(f"User {user.username} has been suspended.", 'success')
+        
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/unsuspend', methods=['POST'])
+@login_required
+def unsuspend_user(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    user.is_suspended = False
+    db.session.commit()
+    flash(f"User {user.username} has been unsuspended.", 'success')
         
     return redirect(url_for('admin_users'))
 
