@@ -7,49 +7,49 @@
     <title>{% block title %}Inwit Tix{% endblock %}</title>
     
     <link rel="icon" type="image/png" href="{{ url_for('static', filename='logo.png') }}">
-    
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700;800&display=swap" rel="stylesheet">
 </head>
-<body>
-    <nav>
-        <div class="container">
-            <a href="{{ url_for('index') }}" class="brand">
-                <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo" class="brand-logo">
-                <div class="separator"></div>
-                <span class="brand-motto">Your Digital Gateway to Events</span>
+<body style="margin: 0; padding: 0; font-family: 'Inter', sans-serif; background-color: #f4f7f6;">
+    
+    <!-- FIXED HEADER LAYOUT -->
+    <nav style="background-color: #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.05); padding: 12px 0; position: sticky; top: 0; z-index: 1000; border-bottom: 1px solid #eaeaea;">
+        <div style="display: flex; align-items: center; justify-content: space-between; max-width: 1200px; margin: 0 auto; padding: 0 20px; flex-wrap: wrap; gap: 15px;">
+            
+            <!-- Logo Section -->
+            <a href="{{ url_for('index') }}" style="display: flex; flex-direction: column; text-decoration: none;">
+                <img src="{{ url_for('static', filename='logo.png') }}" alt="Inwit Tix Logo" style="height: 38px; width: auto; object-fit: contain;">
+                <span style="font-size: 0.7rem; color: #666; margin-top: 2px; font-weight: 500;">Your Digital Gateway to Events</span>
             </a>
-            <ul>
-                <li><a href="{{ url_for('index') }}">Events</a></li>
-                <!-- Publicly accessible admin links for testing -->
-                <li><a href="{{ url_for('airtel_tester') }}">Airtel Test</a></li>
-                <!-- Note: The admin dashboard itself still has @login_required in app.py, so this link might redirect to login if clicked -->
-                <li><a href="{{ url_for('admin_dashboard') }}">Admin</a></li>
-                <li><a href="{{ url_for('help_page') }}">Help</a></li>
+            
+            <!-- Navigation Links Section -->
+            <ul style="display: flex; list-style: none; margin: 0; padding: 0; gap: 15px; align-items: center; flex-wrap: wrap;">
+                <li><a href="{{ url_for('index') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Events</a></li>
+                <li><a href="{{ url_for('airtel_tester') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Airtel Test</a></li>
+                <li><a href="{{ url_for('admin_dashboard') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Admin</a></li>
+                <li><a href="{{ url_for('help_page') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Help</a></li>
                 
                 {% if current_user.is_authenticated %}
-                    <li><a href="{{ url_for('profile') }}">My Profile</a></li>
-                    <li><a href="{{ url_for('create_event') }}">Create Event</a></li>
-                    
+                    <li><a href="{{ url_for('profile') }}" style="text-decoration: none; color: #002366; font-weight: 600; font-size: 0.95rem;">My Profile</a></li>
+                    <li><a href="{{ url_for('create_event') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Create Event</a></li>
                     {% if current_user.role in ['organizer', 'admin'] %}
-                        <li><a href="{{ url_for('scanner') }}">Scan</a></li>
+                        <li><a href="{{ url_for('scanner') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Scan</a></li>
                     {% endif %}
-                    
-                    <li><a href="{{ url_for('logout') }}">Logout</a></li>
+                    <li><a href="{{ url_for('logout') }}" style="text-decoration: none; color: #dc2626; font-weight: 500; font-size: 0.95rem;">Logout</a></li>
                 {% else %}
-                    <li><a href="{{ url_for('login') }}">Login</a></li>
-                    <li><a href="{{ url_for('register') }}">Register</a></li>
+                    <li><a href="{{ url_for('login') }}" style="text-decoration: none; color: #333; font-weight: 500; font-size: 0.95rem;">Login</a></li>
+                    <li><a href="{{ url_for('register') }}" style="text-decoration: none; background-color: #002366; color: white; padding: 8px 16px; border-radius: 6px; font-weight: 600; font-size: 0.95rem;">Register</a></li>
                 {% endif %}
             </ul>
         </div>
     </nav>
 
-    <main class="container">
+    <main class="container" style="max-width: 1200px; margin: 30px auto; padding: 0 20px;">
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
-                <div class="flash-messages">
+                <div class="flash-messages" style="margin-bottom: 20px;">
                 {% for category, message in messages %}
-                    <div class="alert alert-{{ category }}">{{ message }}</div>
+                    <div class="alert alert-{{ category }}" style="padding: 12px 16px; border-radius: 6px; margin-bottom: 10px; {% if category == 'success' %}background-color: #d1fae5; color: #065f46;{% elif category == 'danger' %}background-color: #fee2e2; color: #991b1b;{% else %}background-color: #dbeafe; color: #1e40af;{% endif %}">{{ message }}</div>
                 {% endfor %}
                 </div>
             {% endif %}
@@ -57,7 +57,7 @@
         {% block content %}{% endblock %}
     </main>
 
-    <footer>
+    <footer style="text-align: center; padding: 20px; color: #666; font-size: 0.85rem; margin-top: 40px; border-top: 1px solid #eaeaea;">
         <p>&copy; {{ current_year }} Inwit Systems Ltd. All rights reserved.</p>
     </footer>
 </body>
