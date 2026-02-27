@@ -18,7 +18,7 @@ from weasyprint import HTML
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 import pytz
-from itsdangerous import URLSafeTimedSerializer # NEW: For secure password reset tokens
+from itsdangerous import URLSafeTimedSerializer
 
 # --- App Configuration ---
 load_dotenv()
@@ -43,7 +43,7 @@ app.config['PREFERRED_URL_SCHEME'] = 'https'
 if os.environ.get('SERVER_NAME'):
     app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
-# Airtel Credentials (Staging defaults)
+# Airtel Credentials
 AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
 AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '2a6f724c-c42e-4ef7-9b43-8a3c20868a26')
 AIRTEL_BASE_URL = os.environ.get('AIRTEL_BASE_URL', 'https://openapiuat.airtel.co.zm')
@@ -258,6 +258,10 @@ def index():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+@app.route('/register-options')
+def register_options():
+    return render_template('register_options.html')
+
 @app.route('/register', methods=['GET', 'POST'])
 def register():
     if current_user.is_authenticated: return redirect(url_for('index'))
@@ -339,7 +343,7 @@ def api_test_payment():
         "response_from_airtel": result
     })
 
-# --- NEW FULL PASSWORD RESET LOGIC ---
+# --- PASSWORD RESET LOGIC ---
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
