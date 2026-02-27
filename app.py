@@ -440,6 +440,42 @@ def approve_organizer(user_id):
     flash(f"Organizer {user.username} has been approved.", 'success')
     return redirect(url_for('admin_approvals'))
 
+@app.route('/admin/events/<int:event_id>/toggle_feature', methods=['POST'])
+@login_required
+def toggle_feature_event(event_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    event = Event.query.get_or_404(event_id)
+    # Toggle the is_featured status
+    event.is_featured = not event.is_featured
+    db.session.commit()
+    
+    status = "featured" if event.is_featured else "un-featured"
+    flash(f'Event "{event.name}" is now {status}.', 'success')
+    return redirect(url_for('admin_events'))
+
+@app.route('/admin/events/<int:event_id>/delete', methods=['POST'])
+@login_required
+def delete_event(event_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    event = Event.query.get_or_404(event_id)
+    
+    # Safely try to delete the event
+    try:
+        db.session.delete(event)
+        db.session.commit()
+        flash(f'Event "{event.name}" has been successfully deleted.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Could not delete event. It likely has purchased tickets attached to it. Try suspending the organizer instead.', 'danger')
+        
+    return redirect(url_for('admin_events'))
+
 # --- API & TESTING LOGIC ---
 
 @app.route('/airtel-tester', methods=['GET', 'POST'])
