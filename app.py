@@ -335,10 +335,16 @@ def admin_dashboard():
     if current_user.role != 'admin':
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('index'))
+    
     users = User.query.all()
     events = Event.query.all()
+    tickets = Ticket.query.all()
+    
+    # Calculate total revenue from successful ticket sales
+    total_revenue = sum(ticket.price_paid for ticket in tickets if ticket.payment_status == 'success')
+    
     # CRITICAL FIX: Ensure this maps to the exact template filename in GitHub
-    return render_template('admin_dashboard.html', users=users, events=events)
+    return render_template('admin_dashboard.html', users=users, events=events, tickets=tickets, total_revenue=total_revenue)
 
 # --- API & TESTING LOGIC ---
 
