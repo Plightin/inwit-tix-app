@@ -18,6 +18,7 @@ from weasyprint import HTML
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 import pytz
+from itsdangerous import URLSafeTimedSerializer # NEW: For secure password reset tokens
 
 # --- App Configuration ---
 load_dotenv()
@@ -32,7 +33,7 @@ if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY')
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-secret-key-123')
 app.config['UPLOAD_FOLDER'] = os.environ.get('UPLOAD_FOLDER', '/var/data/uploads')
 app.config['MAX_CONTENT_LENGTH'] = 4 * 1024 * 1024
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg'}
@@ -118,7 +119,6 @@ class Ticket(db.Model):
 
 @app.template_filter('to_local_time')
 def to_local_time_filter(dt, fmt='%d %b %Y, %I:%M %p'):
-    """Converts UTC datetime to CAT (Central Africa Time) for display."""
     if not dt: return ""
     tz = pytz.timezone('Africa/Lusaka')
     if dt.tzinfo is None:
@@ -138,11 +138,9 @@ def inject_now():
 def init_db():
     with app.app_context():
         db.create_all()
-        # Create a default admin user if it doesn't exist
         admin_email = "admin@inwittix.com"
         admin_user = User.query.filter_by(email=admin_email).first()
         if not admin_user:
-            # Default password is 'admin123'. Email confirmed by default for admin.
             new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True, is_suspended=False)
             db.session.add(new_admin)
             db.session.commit()
@@ -171,18 +169,12 @@ def generate_qr_code(ticket_uid):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def create_and_email_ticket(ticket):
-    """Generates PDF and sends email to the ticket owner."""
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
-        
-        # Render PDF
         html_for_pdf = render_template('ticket_pdf.html', ticket=ticket, qr_code_img=qr_code_img, logo_path=logo_url)
         pdf_bytes = HTML(string=html_for_pdf, base_url=request.url_root).write_pdf()
-        
-        # Render Email
         email_html = render_template('email_ticket.html', ticket=ticket, logo_url=logo_url)
-        
         msg = Message(subject=f"Your Ticket for {ticket.event.name}", recipients=[ticket.owner.email])
         msg.html = email_html
         msg.attach(f"ticket-{ticket.id}.pdf", "application/pdf", pdf_bytes)
@@ -203,7 +195,6 @@ def get_airtel_token():
     }
     try:
         response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=10)
-        # Return both token and full response for debugging
         if response.status_code == 200:
             return response.json().get('access_token'), response.json()
         return None, response.json()
@@ -212,10 +203,7 @@ def get_airtel_token():
         return None, {"error": str(e)}
 
 def initiate_ussd_push(msisdn, amount, partner_id):
-    """Initiates a USSD push and returns raw response data for debugging/testing."""
     token, auth_res = get_airtel_token()
-    
-    # If no token, return the error details from auth
     if not token: 
         return {"error": "Auth Failed", "details": auth_res}, {"auth_status": "failed"}
     
@@ -268,7 +256,6 @@ def index():
 
 @app.route('/uploads/<path:filename>')
 def uploaded_file(filename):
-    """Serves uploaded files from the persistent disk."""
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
 @app.route('/register', methods=['GET', 'POST'])
@@ -279,6 +266,7 @@ def register():
         email = request.form.get('email')
         password = request.form.get('password')
         phone = request.form.get('phone_number')
+        
         if User.query.filter_by(username=username).first():
             flash('Username taken.', 'danger')
         elif User.query.filter_by(email=email).first():
@@ -336,28 +324,22 @@ def airtel_tester():
         test_result, raw_req = initiate_ussd_push(msisdn, amount, partner_id)
     return render_template('airtel_tester.html', result=test_result, request_body=raw_req)
 
-# NEW: Public JSON API endpoint for Postman testing
 @app.route('/api/test-payment', methods=['POST'])
 def api_test_payment():
-    """
-    Public API endpoint to trigger USSD push.
-    Input JSON: { "phone": "097...", "amount": 1.0 }
-    """
     data = request.json
     if not data:
         return jsonify({"error": "Invalid JSON"}), 400
-        
     msisdn = data.get('phone')
     amount = data.get('amount', 1.0)
     partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
-    
     result, payload = initiate_ussd_push(msisdn, amount, partner_id)
-    
     return jsonify({
         "status": "initiated",
         "request_sent_to_airtel": payload,
         "response_from_airtel": result
     })
+
+# --- NEW FULL PASSWORD RESET LOGIC ---
 
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
@@ -365,11 +347,50 @@ def forgot_password():
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
         if user:
-            flash('If an account exists for that email, a reset link has been sent.', 'info')
-        else:
-            flash('If an account exists for that email, a reset link has been sent.', 'info')
+            # Generate secure token
+            s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+            token = s.dumps(user.email, salt='password-reset-salt')
+            reset_url = url_for('reset_password', token=token, _external=True)
+            
+            # Send Email
+            try:
+                msg = Message("Password Reset Request - Inwit Tix", recipients=[user.email])
+                msg.html = f"""
+                <h3>Hello {user.username},</h3>
+                <p>You requested a password reset for your Inwit Tix account.</p>
+                <p>Please click the link below to set a new password:</p>
+                <p><a href="{reset_url}">{reset_url}</a></p>
+                <p><i>This link will expire in 1 hour. If you didn't request this, simply ignore this email.</i></p>
+                """
+                mail.send(msg)
+                print(f"Sent reset email to {user.email}")
+            except Exception as e:
+                print(f"Failed to send reset email: {e}")
+                
+        flash('If an account exists for that email, a reset link has been sent.', 'info')
         return redirect(url_for('login'))
     return render_template('forgot_password.html')
+
+@app.route('/reset-password/<token>', methods=['GET', 'POST'])
+def reset_password(token):
+    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        # Token expires in 3600 seconds (1 hour)
+        email = s.loads(token, salt='password-reset-salt', max_age=3600)
+    except Exception as e:
+        flash('The password reset link is invalid or has expired.', 'danger')
+        return redirect(url_for('login'))
+        
+    if request.method == 'POST':
+        user = User.query.filter_by(email=email).first()
+        if user:
+            new_password = request.form.get('password')
+            user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
+            db.session.commit()
+            flash('Your password has been successfully updated! You can now log in.', 'success')
+            return redirect(url_for('login'))
+            
+    return render_template('reset_password.html')
 
 @app.route('/resend-activation', methods=['GET', 'POST'])
 def resend_activation():
@@ -434,18 +455,17 @@ def purchase_ticket(event_id):
     )
     db.session.add(new_ticket)
     db.session.commit()
-    airtel_id, msg = initiate_ussd_push(phone, price, partner_id)
-    if isinstance(airtel_id, dict) and airtel_id.get('status', {}).get('success'):
-        new_ticket.airtel_id = airtel_id.get('data', {}).get('transaction', {}).get('id')
+    # Initiate Airtel Payment
+    res_data, payload = initiate_ussd_push(phone, price, partner_id)
+    if isinstance(res_data, dict) and res_data.get('status', {}).get('success'):
+        new_ticket.airtel_id = res_data.get('data', {}).get('transaction', {}).get('id')
         db.session.commit()
         flash(f'USSD Push sent! Enter PIN on your phone to pay K{price}.', 'info')
         return redirect(url_for('view_ticket', ticket_id=new_ticket.id))
     else:
         db.session.delete(new_ticket)
         db.session.commit()
-        error_msg = msg
-        if isinstance(airtel_id, dict):
-             error_msg = airtel_id.get('status', {}).get('message', 'Airtel API Error')
+        error_msg = res_data.get('status', {}).get('message', 'Airtel API Error') if isinstance(res_data, dict) else "Connection failed"
         flash(f'Payment Failed: {error_msg}', 'danger')
         return redirect(url_for('event_detail', event_id=event.id))
 
