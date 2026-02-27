@@ -383,6 +383,63 @@ def admin_audit_log():
         return redirect(url_for('index'))
     return render_template('admin_audit_log.html')
 
+# --- ADMIN ACTION ROUTES ---
+
+@app.route('/admin/users/<int:user_id>/suspend', methods=['POST'])
+@login_required
+def suspend_user(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot suspend yourself.", 'warning')
+    else:
+        # Toggle suspension status
+        user.is_suspended = not user.is_suspended
+        db.session.commit()
+        action = "suspended" if user.is_suspended else "unsuspended"
+        flash(f"User {user.username} has been {action}.", 'success')
+        
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
+@login_required
+def delete_user(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    if user.id == current_user.id:
+        flash("You cannot delete yourself.", 'warning')
+    else:
+        # Note: Depending on your database setup, deleting a user might fail if they have attached events/tickets.
+        # You may need to handle cascading deletes or just stick to suspending.
+        try:
+            db.session.delete(user)
+            db.session.commit()
+            flash(f"User {user.username} has been deleted.", 'success')
+        except Exception as e:
+            db.session.rollback()
+            flash(f"Could not delete user. They may have existing events or tickets. Suspend them instead.", 'danger')
+            
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
+@login_required
+def approve_organizer(user_id):
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    
+    user = User.query.get_or_404(user_id)
+    user.approval_status = 'approved'
+    db.session.commit()
+    flash(f"Organizer {user.username} has been approved.", 'success')
+    return redirect(url_for('admin_approvals'))
+
 # --- API & TESTING LOGIC ---
 
 @app.route('/airtel-tester', methods=['GET', 'POST'])
