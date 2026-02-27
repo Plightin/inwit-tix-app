@@ -329,6 +329,8 @@ def logout():
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
 
+# --- ADMIN LOGIC ---
+
 @app.route('/admin')
 @login_required
 def admin_dashboard():
@@ -343,8 +345,43 @@ def admin_dashboard():
     # Calculate total revenue from successful ticket sales
     total_revenue = sum(ticket.price_paid for ticket in tickets if ticket.payment_status == 'success')
     
-    # CRITICAL FIX: Ensure this maps to the exact template filename in GitHub
     return render_template('admin_dashboard.html', users=users, events=events, tickets=tickets, total_revenue=total_revenue)
+
+@app.route('/admin/approvals')
+@login_required
+def admin_approvals():
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    # Fetch pending organizers if applicable, or just all users based on your template
+    users = User.query.all() 
+    return render_template('admin_approvals.html', users=users)
+
+@app.route('/admin/users')
+@login_required
+def admin_users():
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    users = User.query.all()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/events')
+@login_required
+def admin_events():
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    events = Event.query.all()
+    return render_template('admin_events.html', events=events)
+
+@app.route('/admin/audit')
+@login_required
+def admin_audit_log():
+    if current_user.role != 'admin':
+        flash('Unauthorized access.', 'danger')
+        return redirect(url_for('index'))
+    return render_template('admin_audit_log.html')
 
 # --- API & TESTING LOGIC ---
 
