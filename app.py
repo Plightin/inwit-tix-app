@@ -262,26 +262,44 @@ def uploaded_file(filename):
 def register_options():
     return render_template('register_options.html')
 
-@app.route('/register', methods=['GET', 'POST'])
+@app.route('/register')
 def register():
+    # Redirect any old generic register links to the new options page
+    return redirect(url_for('register_options'))
+
+@app.route('/register/buyer', methods=['GET', 'POST'])
+def register_buyer():
     if current_user.is_authenticated: return redirect(url_for('index'))
     if request.method == 'POST':
-        username = request.form.get('username')
-        email = request.form.get('email')
-        password = request.form.get('password')
-        phone = request.form.get('phone_number')
-        
-        if User.query.filter_by(username=username).first():
-            flash('Username taken.', 'danger')
-        elif User.query.filter_by(email=email).first():
-            flash('Email already registered.', 'danger')
-        else:
-            new_user = User(username, email, password, phone)
-            db.session.add(new_user)
-            db.session.commit()
-            flash('Account created! Please log in.', 'success')
-            return redirect(url_for('login'))
+        return process_registration('user')
     return render_template('register.html')
+
+@app.route('/register/organizer', methods=['GET', 'POST'])
+def register_organizer():
+    if current_user.is_authenticated: return redirect(url_for('index'))
+    if request.method == 'POST':
+        return process_registration('organizer')
+    return render_template('register.html')
+
+def process_registration(role):
+    """Helper function to process the form submission for any role"""
+    username = request.form.get('username')
+    email = request.form.get('email')
+    password = request.form.get('password')
+    phone = request.form.get('phone_number')
+    
+    if User.query.filter_by(username=username).first():
+        flash('Username taken.', 'danger')
+        return render_template('register.html')
+    elif User.query.filter_by(email=email).first():
+        flash('Email already registered.', 'danger')
+        return render_template('register.html')
+    else:
+        new_user = User(username, email, password, phone, role=role)
+        db.session.add(new_user)
+        db.session.commit()
+        flash('Account created! Please log in.', 'success')
+        return redirect(url_for('login'))
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
