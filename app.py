@@ -258,31 +258,19 @@ def index():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
+# --- REGISTRATION LOGIC ---
+
 @app.route('/register-options')
 def register_options():
     return render_template('register_options.html')
 
 @app.route('/register')
 def register():
-    # Redirect any old generic register links to the new options page
+    # Redirect generic register links to the options page
     return redirect(url_for('register_options'))
 
-@app.route('/register/buyer', methods=['GET', 'POST'])
-def register_buyer():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        return process_registration('user')
-    return render_template('register.html')
-
-@app.route('/register/organizer', methods=['GET', 'POST'])
-def register_organizer():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        return process_registration('organizer')
-    return render_template('register.html')
-
 def process_registration(role):
-    """Helper function to process the form submission for any role"""
+    """Helper function to handle form submission for any role"""
     username = request.form.get('username')
     email = request.form.get('email')
     password = request.form.get('password')
@@ -300,6 +288,22 @@ def process_registration(role):
         db.session.commit()
         flash('Account created! Please log in.', 'success')
         return redirect(url_for('login'))
+
+@app.route('/register/buyer', methods=['GET', 'POST'])
+def register_buyer():
+    if current_user.is_authenticated: return redirect(url_for('index'))
+    if request.method == 'POST':
+        return process_registration('user')
+    return render_template('register.html')
+
+@app.route('/register/organizer', methods=['GET', 'POST'])
+def register_organizer():
+    if current_user.is_authenticated: return redirect(url_for('index'))
+    if request.method == 'POST':
+        return process_registration('organizer')
+    return render_template('register.html')
+
+# --- USER LOGIC ---
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -333,7 +337,10 @@ def admin_dashboard():
         return redirect(url_for('index'))
     users = User.query.all()
     events = Event.query.all()
-    return render_template('admin.html', users=users, events=events)
+    # CRITICAL FIX: Ensure this maps to the exact template filename in GitHub
+    return render_template('admin_dashboard.html', users=users, events=events)
+
+# --- API & TESTING LOGIC ---
 
 @app.route('/airtel-tester', methods=['GET', 'POST'])
 def airtel_tester():
@@ -425,6 +432,8 @@ def resend_activation():
             flash('Email not found.', 'danger')
         return redirect(url_for('login'))
     return render_template('resend_activation.html')
+
+# --- EVENT & TICKETING LOGIC ---
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
