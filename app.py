@@ -531,14 +531,10 @@ def forgot_password():
             
             # Send Email
             try:
-                msg = Message("Password Reset Request - Inwit Tix", recipients=[user.email])
-                msg.html = f"""
-                <h3>Hello {user.username},</h3>
-                <p>You requested a password reset for your Inwit Tix account.</p>
-                <p>Please click the link below to set a new password:</p>
-                <p><a href="{reset_url}">{reset_url}</a></p>
-                <p><i>This link will expire in 1 hour. If you didn't request this, simply ignore this email.</i></p>
-                """
+                msg = Message("Reset Your Inwit Tix Password", recipients=[user.email])
+                logo_url = url_for('static', filename='logo.png', _external=True)
+                # Use the new HTML template instead of the hardcoded string
+                msg.html = render_template('reset_email.html', user=user, reset_url=reset_url, logo_url=logo_url)
                 mail.send(msg)
                 print(f"Sent reset email to {user.email}")
             except Exception as e:
