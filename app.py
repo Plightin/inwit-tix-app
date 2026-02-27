@@ -284,10 +284,34 @@ def process_registration(role):
         return render_template('register.html')
     else:
         new_user = User(username, email, password, phone, role=role)
+        
+        # NEW: Organizers need manual admin approval before creating events
+        if role == 'organizer':
+            new_user.approval_status = 'pending'
+            
         db.session.add(new_user)
         db.session.commit()
-        flash('Account created! Please log in.', 'success')
+        
+        # NEW: Send the activation email
+        send_activation_email(new_user)
+        
+        flash('Account created! Please check your email to activate your account.', 'success')
         return redirect(url_for('login'))
+
+def send_activation_email(user):
+    """Helper function to securely send account activation emails"""
+    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    token = s.dumps(user.email, salt='email-activate-salt')
+    activation_url = url_for('activate_email', token=token, _external=True)
+    logo_url = url_for('static', filename='logo.png', _external=True)
+    
+    try:
+        msg = Message("Activate Your Inwit Tix Account", recipients=[user.email])
+        msg.html = render_template('activate_email.html', user=user, activation_url=activation_url, logo_url=logo_url)
+        mail.send(msg)
+        print(f"Sent activation email to {user.email}")
+    except Exception as e:
+        print(f"Failed to send activation email: {e}")
 
 @app.route('/register/buyer', methods=['GET', 'POST'])
 def register_buyer():
@@ -311,6 +335,17 @@ def login():
     if request.method == 'POST':
         user = User.query.filter_by(username=request.form.get('username')).first()
         if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
+            
+            # NEW: Check if email is confirmed
+            if not user.is_email_confirmed:
+                flash('Please activate your account first. Check your email for the activation link.', 'warning')
+                return redirect(url_for('login'))
+                
+            # NEW: Check if user is suspended
+            if user.is_suspended:
+                flash('Your account has been suspended. Please contact support.', 'danger')
+                return redirect(url_for('login'))
+                
             login_user(user, remember=True)
             next_page = request.args.get('next')
             if not next_page or not next_page.startswith('/'):
@@ -353,8 +388,8 @@ def admin_approvals():
     if current_user.role != 'admin':
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('index'))
-    # Fetch pending organizers if applicable, or just all users based on your template
-    users = User.query.all() 
+    # Fetch only organizers, ordered newest first
+    users = User.query.filter_by(role='organizer').order_by(User.id.desc()).all() 
     return render_template('admin_approvals.html', users=users)
 
 @app.route('/admin/users')
@@ -571,17 +606,47 @@ def resend_activation():
         email = request.form.get('email')
         user = User.query.filter_by(email=email).first()
         if user:
-            flash('Activation link has been resent to your email.', 'info')
+            if user.is_email_confirmed:
+                flash('Your account is already activated. You can log in.', 'info')
+            else:
+                send_activation_email(user)
+                flash('A new activation link has been sent to your email.', 'success')
         else:
             flash('Email not found.', 'danger')
         return redirect(url_for('login'))
     return render_template('resend_activation.html')
+
+# NEW: Activation Route Handler
+@app.route('/activate/<token>')
+def activate_email(token):
+    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
+    try:
+        # Link expires in 24 hours (86400 seconds)
+        email = s.loads(token, salt='email-activate-salt', max_age=86400) 
+    except Exception:
+        flash('The activation link is invalid or has expired.', 'danger')
+        return redirect(url_for('login'))
+        
+    user = User.query.filter_by(email=email).first()
+    if user:
+        if user.is_email_confirmed:
+            flash('Account already activated. Please log in.', 'info')
+        else:
+            user.is_email_confirmed = True
+            db.session.commit()
+            flash('Your account has been successfully activated! You can now log in.', 'success')
+    return redirect(url_for('login'))
 
 # --- EVENT & TICKETING LOGIC ---
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
+    # NEW: Prevent pending organizers from creating events
+    if current_user.role == 'organizer' and current_user.approval_status != 'approved':
+        flash('Your organizer account is pending approval. You cannot create events yet.', 'warning')
+        return redirect(url_for('profile'))
+        
     if request.method == 'POST':
         file = request.files['artwork']
         if file and allowed_file(file.filename):
