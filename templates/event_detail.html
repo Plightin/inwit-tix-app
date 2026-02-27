@@ -3,134 +3,172 @@
 
 {% block content %}
 
-<div class="event-detail-container" style="max-width: 900px; margin: 0 auto; padding: 20px;">
-<!-- Event Header Image -->
-<div class="detail-hero" style="position: relative; border-radius: 1.5rem; overflow: hidden; margin-bottom: 2rem; box-shadow: 0 10px 25px rgba(0,0,0,0.1);">
-<img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="{{ event.name }}" style="width: 100%; height: auto; display: block;">
-<div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(transparent, rgba(0,0,0,0.8)); padding: 40px 20px 20px;">
-<span style="background: #ff9800; color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.8rem; font-weight: bold; text-transform: uppercase;">{{ event.category }}</span>
-<h1 style="color: white; font-size: 2.5rem; font-weight: 800; margin-top: 10px;">{{ event.name }}</h1>
-</div>
-</div>
+<div class="event-detail-container" style="max-width: 1000px; margin: 0 auto; padding: 20px;">
+    
+    <!-- Professional Event Header Image (Constrained with Blurred Background) -->
+    <div class="detail-hero" style="position: relative; border-radius: 1.5rem; overflow: hidden; margin-bottom: 2.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.15); background-color: #111; display: flex; justify-content: center; align-items: center;">
+        
+        <!-- Blurred background layer to fill empty space -->
+        <div style="position: absolute; top: -10%; left: -10%; right: -10%; bottom: -10%; background-image: url('{{ url_for('uploaded_file', filename=event.artwork) }}'); background-size: cover; background-position: center; filter: blur(30px); opacity: 0.5; z-index: 0;"></div>
 
-<div style="display: grid; grid-template-columns: 1fr 350px; gap: 30px;" class="detail-grid">
-    <!-- Left Side: Description and Details -->
-    <div class="detail-main">
-        <div class="info-card" style="background: white; padding: 25px; border-radius: 1rem; margin-bottom: 20px; border: 1px solid #e5e7eb;">
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: #1f2937; margin-bottom: 1rem;">Event Details</h3>
-            
-            <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                <div style="background: #eff6ff; padding: 10px; border-radius: 10px; margin-right: 15px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" style="width: 24px; height: 24px; color: #1e40af;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                    </svg>
-                </div>
-                <div>
-                    <p style="margin: 0; font-size: 0.85rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Date & Time</p>
-                    <p style="margin: 0; font-weight: 700; color: #1f2937;">{{ event.event_datetime|to_local_time(fmt='%A, %d %B %Y') }}</p>
-                    <p style="margin: 0; font-size: 0.9rem; color: #4b5563;">{{ event.event_datetime|to_local_time(fmt='%I:%M %p') }} CAT</p>
-                </div>
-            </div>
-
-            <div style="display: flex; align-items: center; margin-bottom: 15px;">
-                <div style="background: #fef2f2; padding: 10px; border-radius: 10px; margin-right: 15px;">
-                    <svg xmlns="http://www.w3.org/2000/svg" style="width: 24px; height: 24px; color: #b91c1c;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                </div>
-                <div>
-                    <p style="margin: 0; font-size: 0.85rem; color: #6b7280; text-transform: uppercase; font-weight: 600;">Venue</p>
-                    <p style="margin: 0; font-weight: 700; color: #1f2937;">{{ event.venue }}</p>
-                </div>
-            </div>
-
-            <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-            
-            <h4 style="font-weight: 700; color: #1f2937; margin-bottom: 0.5rem;">About this Event</h4>
-            <p style="color: #4b5563; line-height: 1.6; white-space: pre-line;">{{ event.description }}</p>
+        <!-- The actual artwork, constrained and centered -->
+        <img src="{{ url_for('uploaded_file', filename=event.artwork) }}" alt="{{ event.name }}" style="max-width: 100%; height: 100%; object-fit: contain; position: relative; z-index: 1;">
+        
+        <!-- Gradient Overlay and Text -->
+        <div style="position: absolute; bottom: 0; left: 0; right: 0; background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.6) 60%, transparent 100%); padding: 60px 30px 25px; z-index: 2;">
+            <span style="background: #ff9800; color: white; padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; box-shadow: 0 2px 4px rgba(0,0,0,0.2);">{{ event.category }}</span>
+            <h1 style="color: white; font-size: 2.75rem; font-weight: 800; margin-top: 15px; margin-bottom: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.5); line-height: 1.1;">{{ event.name }}</h1>
         </div>
     </div>
 
-    <!-- Right Side: Ticket Purchase Form -->
-    <div class="detail-sidebar">
-        <div class="purchase-card" style="background: white; padding: 25px; border-radius: 1rem; border: 2px solid #002366; position: sticky; top: 20px;">
-            <h3 style="font-size: 1.25rem; font-weight: 700; color: #002366; margin-bottom: 1.5rem; text-align: center;">Get Your Tickets</h3>
-            
-            {% if current_user.is_authenticated %}
-                <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="POST">
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label for="phone_number" style="display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Airtel Money Number</label>
-                        <input type="tel" name="phone_number" id="phone_number" placeholder="e.g., 0977123456" 
-                               value="{{ current_user.phone_number or '' }}"
-                               style="width: 100%; padding: 12px; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem;" required>
-                        <small style="color: #6b7280; font-size: 0.75rem;">A USSD prompt will be sent to this number.</small>
+    <div style="display: grid; grid-template-columns: 1fr 380px; gap: 40px;" class="detail-grid">
+        <!-- Left Side: Description and Details -->
+        <div class="detail-main">
+            <div class="info-card" style="background: white; padding: 30px; border-radius: 1rem; margin-bottom: 20px; border: 1px solid #e5e7eb; box-shadow: 0 2px 10px rgba(0,0,0,0.02);">
+                <h3 style="font-size: 1.35rem; font-weight: 800; color: #1f2937; margin-top: 0; margin-bottom: 1.5rem;">Event Information</h3>
+                
+                <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                    <div style="background: #eff6ff; padding: 12px; border-radius: 12px; margin-right: 18px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" style="width: 26px; height: 26px; color: #1e40af;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
                     </div>
-
-                    <div style="margin-bottom: 1.5rem;">
-                        <p style="display: block; font-size: 0.875rem; font-weight: 600; color: #374151; margin-bottom: 0.5rem;">Select Ticket Type</p>
-                        
-                        {% if event.price_ordinary > 0 %}
-                        <label style="display: flex; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer; transition: background 0.2s;">
-                            <input type="radio" name="ticket_type" value="Ordinary" required style="margin-right: 15px;">
-                            <div style="flex-grow: 1;">
-                                <span style="font-weight: 700; color: #1f2937;">Ordinary</span>
-                                <span style="float: right; color: #002366; font-weight: 800;">K{{ "%.2f"|format(event.price_ordinary) }}</span>
-                            </div>
-                        </label>
-                        {% endif %}
-
-                        {% if event.price_vip > 0 %}
-                        <label style="display: flex; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer;">
-                            <input type="radio" name="ticket_type" value="VIP" style="margin-right: 15px;">
-                            <div style="flex-grow: 1;">
-                                <span style="font-weight: 700; color: #1f2937;">VIP</span>
-                                <span style="float: right; color: #002366; font-weight: 800;">K{{ "%.2f"|format(event.price_vip) }}</span>
-                            </div>
-                        </label>
-                        {% endif %}
-
-                        {% if event.price_vvip > 0 %}
-                        <label style="display: flex; align-items: center; padding: 12px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer;">
-                            <input type="radio" name="ticket_type" value="VVIP" style="margin-right: 15px;">
-                            <div style="flex-grow: 1;">
-                                <span style="font-weight: 700; color: #1f2937;">VVIP</span>
-                                <span style="float: right; color: #002366; font-weight: 800;">K{{ "%.2f"|format(event.price_vvip) }}</span>
-                            </div>
-                        </label>
-                        {% endif %}
+                    <div>
+                        <p style="margin: 0; font-size: 0.85rem; color: #6b7280; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Date & Time</p>
+                        <p style="margin: 4px 0 0; font-weight: 700; font-size: 1.1rem; color: #1f2937;">{{ event.event_datetime|to_local_time(fmt='%A, %d %B %Y') }}</p>
+                        <p style="margin: 2px 0 0; font-size: 0.95rem; color: #4b5563;">{{ event.event_datetime|to_local_time(fmt='%I:%M %p') }} CAT</p>
                     </div>
-
-                    <button type="submit" class="btn" style="width: 100%; padding: 15px; font-weight: 800; text-transform: uppercase; background: #002366; color: white; border: none; border-radius: 0.5rem; cursor: pointer; transition: transform 0.1s;" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
-                        Pay with Airtel Money
-                    </button>
-                </form>
-            {% else %}
-                <div style="text-align: center; padding: 10px;">
-                    <p style="color: #6b7280; margin-bottom: 1.5rem;">Please log in to purchase tickets for this event.</p>
-                    <a href="{{ url_for('login', next=request.path) }}" class="btn" style="display: block; width: 100%; text-decoration: none; padding: 12px; background: #002366; color: white; border-radius: 0.5rem; font-weight: 700;">Log in to Continue</a>
                 </div>
-            {% endif %}
 
-            <div style="margin-top: 20px; text-align: center;">
-                <img src="https://developers.airtel.co.zm/sites/default/files/Airtel_Money_Logo.png" alt="Airtel Money" style="height: 30px; opacity: 0.7;">
+                <div style="display: flex; align-items: center; margin-bottom: 20px;">
+                    <div style="background: #fef2f2; padding: 12px; border-radius: 12px; margin-right: 18px;">
+                        <svg xmlns="http://www.w3.org/2000/svg" style="width: 26px; height: 26px; color: #b91c1c;" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p style="margin: 0; font-size: 0.85rem; color: #6b7280; text-transform: uppercase; font-weight: 700; letter-spacing: 0.5px;">Venue</p>
+                        <p style="margin: 4px 0 0; font-weight: 700; font-size: 1.1rem; color: #1f2937;">{{ event.venue }}</p>
+                    </div>
+                </div>
+
+                <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 25px 0;">
+                
+                <h4 style="font-weight: 800; font-size: 1.2rem; color: #1f2937; margin-bottom: 0.75rem;">About this Event</h4>
+                <p style="color: #4b5563; line-height: 1.7; font-size: 1.05rem; white-space: pre-line; margin-top: 0;">{{ event.description }}</p>
+            </div>
+        </div>
+
+        <!-- Right Side: Ticket Purchase Form -->
+        <div class="detail-sidebar">
+            <div class="purchase-card" style="background: white; padding: 30px; border-radius: 1rem; border: 2px solid #002366; position: sticky; top: 100px; box-shadow: 0 4px 15px rgba(0,35,102,0.08);">
+                <h3 style="font-size: 1.35rem; font-weight: 800; color: #002366; margin-top: 0; margin-bottom: 1.5rem; text-align: center;">Get Your Tickets</h3>
+                
+                {% if current_user.is_authenticated %}
+                    <form action="{{ url_for('purchase_ticket', event_id=event.id) }}" method="POST">
+                        <div class="form-group" style="margin-bottom: 1.5rem;">
+                            <label for="phone_number" style="display: block; font-size: 0.9rem; font-weight: 700; color: #374151; margin-bottom: 0.5rem;">Airtel Money Number</label>
+                            <input type="tel" name="phone_number" id="phone_number" placeholder="e.g., 0977123456" 
+                                   value="{{ current_user.phone_number or '' }}"
+                                   style="width: 100%; padding: 14px; border: 1px solid #d1d5db; border-radius: 0.5rem; font-size: 1rem; box-sizing: border-box; outline-color: #002366;" required>
+                            <small style="color: #6b7280; font-size: 0.8rem; display: block; margin-top: 6px;">A USSD prompt will be sent to this number.</small>
+                        </div>
+
+                        <div style="margin-bottom: 2rem;">
+                            <p style="display: block; font-size: 0.9rem; font-weight: 700; color: #374151; margin-bottom: 0.75rem;">Select Ticket Type</p>
+                            
+                            {% if event.price_ordinary > 0 %}
+                            <label class="ticket-option-label" style="display: flex; align-items: center; padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer; transition: all 0.2s ease;">
+                                <input type="radio" name="ticket_type" value="Ordinary" required style="margin-right: 15px; transform: scale(1.2);">
+                                <div style="flex-grow: 1;">
+                                    <span style="font-weight: 700; font-size: 1.05rem; color: #1f2937;">Ordinary</span>
+                                    <span style="float: right; color: #002366; font-size: 1.1rem; font-weight: 800;">K{{ "%.2f"|format(event.price_ordinary) }}</span>
+                                </div>
+                            </label>
+                            {% endif %}
+
+                            {% if event.price_vip > 0 %}
+                            <label class="ticket-option-label" style="display: flex; align-items: center; padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer; transition: all 0.2s ease;">
+                                <input type="radio" name="ticket_type" value="VIP" style="margin-right: 15px; transform: scale(1.2);">
+                                <div style="flex-grow: 1;">
+                                    <span style="font-weight: 700; font-size: 1.05rem; color: #1f2937;">VIP</span>
+                                    <span style="float: right; color: #002366; font-size: 1.1rem; font-weight: 800;">K{{ "%.2f"|format(event.price_vip) }}</span>
+                                </div>
+                            </label>
+                            {% endif %}
+
+                            {% if event.price_vvip > 0 %}
+                            <label class="ticket-option-label" style="display: flex; align-items: center; padding: 14px 16px; border: 1px solid #e5e7eb; border-radius: 0.5rem; margin-bottom: 10px; cursor: pointer; transition: all 0.2s ease;">
+                                <input type="radio" name="ticket_type" value="VVIP" style="margin-right: 15px; transform: scale(1.2);">
+                                <div style="flex-grow: 1;">
+                                    <span style="font-weight: 700; font-size: 1.05rem; color: #1f2937;">VVIP</span>
+                                    <span style="float: right; color: #002366; font-size: 1.1rem; font-weight: 800;">K{{ "%.2f"|format(event.price_vvip) }}</span>
+                                </div>
+                            </label>
+                            {% endif %}
+                        </div>
+
+                        <button type="submit" class="btn" style="width: 100%; padding: 16px; font-weight: 800; font-size: 1.05rem; letter-spacing: 0.5px; text-transform: uppercase; background: #002366; color: white; border: none; border-radius: 0.5rem; cursor: pointer; transition: transform 0.1s, box-shadow 0.2s;" onmousedown="this.style.transform='scale(0.98)'" onmouseup="this.style.transform='scale(1)'">
+                            Pay with Airtel Money
+                        </button>
+                    </form>
+                {% else %}
+                    <div style="text-align: center; padding: 10px;">
+                        <p style="color: #6b7280; font-size: 1.05rem; margin-bottom: 1.5rem;">Please log in to purchase tickets for this event.</p>
+                        <a href="{{ url_for('login', next=request.path) }}" class="btn" style="display: block; width: 100%; box-sizing: border-box; text-decoration: none; padding: 14px; background: #002366; color: white; border-radius: 0.5rem; font-weight: 700; font-size: 1.05rem;">Log in to Continue</a>
+                    </div>
+                {% endif %}
+
+                <div style="margin-top: 25px; text-align: center;">
+                    <img src="https://developers.airtel.co.zm/sites/default/files/Airtel_Money_Logo.png" alt="Airtel Money" style="height: 35px; opacity: 0.8; filter: grayscale(20%);">
+                </div>
             </div>
         </div>
     </div>
-</div>
-
-
 </div>
 
 <style>
-@media (max-width: 768px) {
-.detail-grid { grid-template-columns: 1fr !important; }
-.detail-sidebar { order: -1; }
-.detail-hero h1 { font-size: 1.75rem !important; }
-}
-.ticket-option-label:hover {
-background-color: #f9fafb;
-border-color: #002366 !important;
-}
+    /* Desktop Hero Height */
+    .detail-hero {
+        height: 450px;
+    }
+
+    /* Ticket hover effects */
+    .ticket-option-label:hover {
+        background-color: #f8fafc !important;
+        border-color: #002366 !important;
+    }
+    .ticket-option-label:has(input:checked) {
+        background-color: #eff6ff !important;
+        border-color: #002366 !important;
+        box-shadow: 0 0 0 1px #002366 inset;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+        .detail-hero {
+            height: 350px;
+            border-radius: 1rem;
+            margin-bottom: 1.5rem;
+        }
+        .detail-hero h1 { 
+            font-size: 1.85rem !important; 
+        }
+        .detail-hero > div:last-child {
+            padding: 40px 20px 20px !important;
+        }
+        .detail-grid { 
+            grid-template-columns: 1fr !important; 
+            gap: 20px !important;
+        }
+        .detail-sidebar { 
+            order: -1; /* Puts checkout form above details on mobile */
+        }
+        .purchase-card {
+            position: static !important;
+        }
+    }
 </style>
 
 {% endblock %}
+```
