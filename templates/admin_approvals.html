@@ -1,52 +1,55 @@
 {% extends 'layout.html' %}
 {% block title %}Organizer Approvals{% endblock %}
-
 {% block content %}
-<div class="main-container">
-    <div style="margin-bottom: 2rem; display: flex; justify-content: space-between; align-items: center;">
-        <h1 class="form-title" style="text-align: left; margin-bottom: 0;">Pending Organizer Approvals</h1>
-        <a href="{{ url_for('admin_dashboard') }}" class="btn" style="width: auto;">&larr; Back to Admin</a>
-    </div>
+<div class="container">
+    <h1 style="margin-bottom: 20px; font-weight: 800; font-size: 2rem;">Organizer Approvals</h1>
+    <p style="color: #6b7280; margin-bottom: 30px;">Review and approve newly registered event organizers so they can start creating events.</p>
 
-    <div class="table-container">
-        {% if organizers %}
-            <table class="custom-table">
+    <div style="background: white; padding: 25px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1);">
+        <div style="overflow-x: auto;">
+            <table class="custom-table" style="width: 100%; border-collapse: collapse;">
                 <thead>
-                    <tr>
-                        <th>Username</th>
-                        <th>Contact</th>
-                        <th>Documents</th>
-                        <th>Action</th>
+                    <tr style="background: #f9fafb; text-align: left;">
+                        <th style="padding: 12px;">ID</th>
+                        <th style="padding: 12px;">Username</th>
+                        <th style="padding: 12px;">Email</th>
+                        <th style="padding: 12px;">Phone</th>
+                        <th style="padding: 12px;">Status</th>
+                        <th style="padding: 12px;">Action</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for org in organizers %}
-                        <tr>
-                            <td>{{ org.username }}</td>
-                            <td>{{ org.email }}<br>{{ org.phone_number }}</td>
-                            <td>
-                                <ul style="padding: 0; list-style: none; margin: 0;">
-                                    {% if org.company_profile_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.company_profile_doc) }}" target="_blank">Profile</a></li>{% endif %}
-                                    {% if org.tax_clearance_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.tax_clearance_doc) }}" target="_blank">Tax</a></li>{% endif %}
-                                    {% if org.banking_details_doc %}<li><a href="{{ url_for('uploaded_file', filename=org.banking_details_doc) }}" target="_blank">Banking</a></li>{% endif %}
-                                </ul>
-                            </td>
-                            <td>
-                                <!-- UPDATED: The form action now correctly points to 'review_organizer' -->
-                                <form action="{{ url_for('review_organizer', user_id=org.id) }}" method="post" style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                    <button type="submit" name="action" value="approve" class="btn btn-secondary" style="width: auto; background-color: #10b981;">Approve</button>
-                                    <hr style="margin: 0.5rem 0;">
-                                    <textarea name="reason" placeholder="Reason for denial..." class="form-group" style="width: 100%; min-height: 60px; margin-bottom: 0.5rem;"></textarea>
-                                    <button type="submit" name="action" value="deny" class="btn" style="width: auto; background-color: #ef4444;">Deny</button>
-                                </form>
-                            </td>
-                        </tr>
+                    {% for user in users %}
+                    <tr style="border-bottom: 1px solid #eee;">
+                        <td style="padding: 12px;">{{ user.id }}</td>
+                        <td style="padding: 12px; font-weight: bold;">{{ user.username }}</td>
+                        <td style="padding: 12px;">{{ user.email }}</td>
+                        <td style="padding: 12px;">{{ user.phone_number or 'N/A' }}</td>
+                        <td style="padding: 12px;">
+                            {% if user.approval_status == 'pending' %}
+                                <span style="background: #fef08a; color: #854d0e; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">Pending</span>
+                            {% else %}
+                                <span style="background: #d1fae5; color: #065f46; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">Approved</span>
+                            {% endif %}
+                        </td>
+                        <td style="padding: 12px;">
+                            {% if user.approval_status == 'pending' %}
+                            <form action="{{ url_for('approve_organizer', user_id=user.id) }}" method="post" style="display: inline;">
+                                <button type="submit" class="btn btn-success" style="padding: 6px 12px; font-size: 0.85rem; width: auto; background-color: #10b981; border: none;">Approve</button>
+                            </form>
+                            {% else %}
+                            <span style="color: #9ca3af; font-size: 0.85rem;">No action needed</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="padding: 20px; text-align: center; color: #6b7280;">No organizers found.</td>
+                    </tr>
                     {% endfor %}
                 </tbody>
             </table>
-        {% else %}
-            <p style="text-align: center; padding: 1rem; color: #6b7280;">There are no pending organizer approvals.</p>
-        {% endif %}
+        </div>
     </div>
 </div>
 {% endblock %}
