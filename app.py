@@ -44,8 +44,8 @@ if os.environ.get('SERVER_NAME'):
     app.config['SERVER_NAME'] = os.environ.get('SERVER_NAME')
 
 # Airtel Credentials
-AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a35e-4089-85aa-2ffac3bdfbcb')
-AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '2a6f724c-c42e-4ef7-9b43-8a3c20868a26')
+AIRTEL_CLIENT_ID = os.environ.get('AIRTEL_CLIENT_ID', 'deb7ec0c-a55e-4e89-85aa-2ffac3bdfbcb')
+AIRTEL_CLIENT_SECRET = os.environ.get('AIRTEL_CLIENT_SECRET', '246f724c-c42e-4ef7-90a3-a03c20868e26')
 AIRTEL_BASE_URL = os.environ.get('AIRTEL_BASE_URL', 'https://openapiuat.airtel.co.zm')
 AIRTEL_COUNTRY = "ZM"
 AIRTEL_CURRENCY = "ZMW"
