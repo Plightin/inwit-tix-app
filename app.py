@@ -11,23 +11,25 @@ from PIL import Image
 from flask import Flask, render_template, request, redirect, url_for, flash, send_file, send_from_directory, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, login_required, logout_user, current_user
-from flask_bcrypt import Bcrypt
 from werkzeug.utils import secure_filename
 from dotenv import load_dotenv
 from weasyprint import HTML
 from flask_mail import Mail, Message
 from werkzeug.middleware.proxy_fix import ProxyFix
 import pytz
-from itsdangerous import URLSafeTimedSerializer
+
+# --- NEW: Firebase Admin SDK ---
+import firebase_admin
+from firebase_admin import credentials, auth
 
 # --- App Configuration ---
 load_dotenv()
 app = Flask(__name__)
 
-# Essential for handling HTTPS and custom domains (tix.inwitsystems.com) correctly on Render
+# Essential for handling HTTPS and custom domains
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Database Setup
+# Database Setup (Point this to your NEW AWS RDS PostgreSQL endpoint in your .env)
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
@@ -58,8 +60,15 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@tix.inwitsystems.com')
 
+# Initialize Firebase Admin
+firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-adminsdk.json')
+if os.path.exists(firebase_cred_path):
+    cred = credentials.Certificate(firebase_cred_path)
+    firebase_admin.initialize_app(cred)
+else:
+    print(f"WARNING: Firebase credentials not found at {firebase_cred_path}. Auth will fail.")
+
 db = SQLAlchemy(app)
-bcrypt = Bcrypt(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
@@ -68,25 +77,19 @@ login_manager.login_view = 'login'
 
 class User(db.Model, UserMixin):
     id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password_hash = db.Column(db.String(128), nullable=False)
-    phone_number = db.Column(db.String(15), nullable=True)
+    # Firebase Unified ID
+    firebase_uid = db.Column(db.String(128), unique=True, nullable=False) 
+    # Data pulled from Firebase
+    email = db.Column(db.String(120), unique=True, nullable=True) 
+    phone_number = db.Column(db.String(20), unique=True, nullable=True)
+    username = db.Column(db.String(80), nullable=True)
+    
     role = db.Column(db.String(20), default='user') # user, organizer, admin
     approval_status = db.Column(db.String(20), default='approved')
-    is_email_confirmed = db.Column(db.Boolean, default=False, nullable=False)
     is_suspended = db.Column(db.Boolean, default=False, nullable=False)
+    
     events = db.relationship('Event', backref='creator', lazy=True)
     tickets = db.relationship('Ticket', backref='owner', lazy=True)
-
-    def __init__(self, username, email, password, phone_number=None, role='user', is_email_confirmed=False, is_suspended=False):
-        self.username = username
-        self.email = email
-        self.password_hash = bcrypt.generate_password_hash(password).decode('utf-8')
-        self.phone_number = phone_number
-        self.role = role
-        self.is_email_confirmed = is_email_confirmed
-        self.is_suspended = is_suspended
 
 class Event(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -108,7 +111,7 @@ class Ticket(db.Model):
     is_scanned = db.Column(db.Boolean, default=False)
     ticket_type = db.Column(db.String(50), nullable=False)
     price_paid = db.Column(db.Float, nullable=False)
-    payment_status = db.Column(db.String(20), default='pending') # pending, success, failed
+    payment_status = db.Column(db.String(20), default='pending') 
     airtel_id = db.Column(db.String(100), nullable=True)
     partner_id = db.Column(db.String(100), unique=True, nullable=False)
     event_id = db.Column(db.Integer, db.ForeignKey('event.id'), nullable=False)
@@ -138,16 +141,7 @@ def inject_now():
 def init_db():
     with app.app_context():
         db.create_all()
-        admin_email = "admin@inwittix.com"
-        admin_user = User.query.filter_by(email=admin_email).first()
-        if not admin_user:
-            new_admin = User(username="System Admin", email=admin_email, password="admin123", role="admin", is_email_confirmed=True, is_suspended=False)
-            db.session.add(new_admin)
-            db.session.commit()
-            print(f"Created default admin user: {admin_email}")
-        else:
-            print("Admin user already exists.")
-    print("Database initialized.")
+    print("Database initialized on AWS RDS.")
 
 # --- Helper Functions ---
 
@@ -169,6 +163,11 @@ def generate_qr_code(ticket_uid):
     return base64.b64encode(buffered.getvalue()).decode("utf-8")
 
 def create_and_email_ticket(ticket):
+    # Skip emailing if no email is attached to the Firebase account (e.g., OTP only users)
+    if not ticket.owner.email:
+        print("User has no email registered via Firebase. Skipping ticket email.")
+        return False
+        
     try:
         qr_code_img = generate_qr_code(ticket.ticket_uid)
         logo_url = url_for('static', filename='logo.png', _external=True)
@@ -240,7 +239,8 @@ def initiate_ussd_push(msisdn, amount, partner_id):
     except Exception as e:
         return {"error": str(e)}, payload
 
-# --- Routes ---
+
+# --- CORE ROUTES ---
 
 @app.route('/')
 def index():
@@ -258,101 +258,69 @@ def index():
 def uploaded_file(filename):
     return send_from_directory(app.config['UPLOAD_FOLDER'], filename)
 
-# --- REGISTRATION LOGIC ---
 
-@app.route('/register-options')
-def register_options():
-    return render_template('register_options.html')
+# --- FIREBASE UNIFIED AUTHENTICATION ---
 
-@app.route('/register')
-def register():
-    # Redirect generic register links to the options page
-    return redirect(url_for('register_options'))
-
-def process_registration(role):
-    """Helper function to handle form submission for any role"""
-    username = request.form.get('username')
-    email = request.form.get('email')
-    password = request.form.get('password')
-    phone = request.form.get('phone_number')
-    
-    if User.query.filter_by(username=username).first():
-        flash('Username taken.', 'danger')
-        return render_template('register.html')
-    elif User.query.filter_by(email=email).first():
-        flash('Email already registered.', 'danger')
-        return render_template('register.html')
-    else:
-        new_user = User(username, email, password, phone, role=role)
-        
-        # NEW: Organizers need manual admin approval before creating events
-        if role == 'organizer':
-            new_user.approval_status = 'pending'
-            
-        db.session.add(new_user)
-        db.session.commit()
-        
-        # NEW: Send the activation email
-        send_activation_email(new_user)
-        
-        flash('Account created! Please check your email to activate your account.', 'success')
-        return redirect(url_for('login'))
-
-def send_activation_email(user):
-    """Helper function to securely send account activation emails"""
-    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-    token = s.dumps(user.email, salt='email-activate-salt')
-    activation_url = url_for('activate_email', token=token, _external=True)
-    logo_url = url_for('static', filename='logo.png', _external=True)
-    
-    try:
-        msg = Message("Activate Your Inwit Tix Account", recipients=[user.email])
-        msg.html = render_template('activate_email.html', user=user, activation_url=activation_url, logo_url=logo_url)
-        mail.send(msg)
-        print(f"Sent activation email to {user.email}")
-    except Exception as e:
-        print(f"Failed to send activation email: {e}")
-
-@app.route('/register/buyer', methods=['GET', 'POST'])
-def register_buyer():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        return process_registration('user')
-    return render_template('register.html')
-
-@app.route('/register/organizer', methods=['GET', 'POST'])
-def register_organizer():
-    if current_user.is_authenticated: return redirect(url_for('index'))
-    if request.method == 'POST':
-        return process_registration('organizer')
-    return render_template('register.html')
-
-# --- USER LOGIC ---
-
-@app.route('/login', methods=['GET', 'POST'])
+@app.route('/login')
 def login():
-    if current_user.is_authenticated: return redirect(url_for('profile'))
-    if request.method == 'POST':
-        user = User.query.filter_by(username=request.form.get('username')).first()
-        if user and bcrypt.check_password_hash(user.password_hash, request.form.get('password')):
+    if current_user.is_authenticated:
+        return redirect(url_for('profile'))
+    
+    # Check if they are trying to register as an organizer
+    requested_role = request.args.get('role', 'user')
+    return render_template('login.html', requested_role=requested_role)
+
+@app.route('/api/firebase-login', methods=['POST'])
+def firebase_login():
+    """Receives the secure ID Token from the browser after Firebase Auth succeeds"""
+    data = request.json
+    id_token = data.get('idToken')
+    requested_role = data.get('role', 'user')
+    
+    if not id_token:
+        return jsonify({"error": "No token provided"}), 400
+        
+    try:
+        # Verify token with Google/Firebase securely
+        decoded_token = auth.verify_id_token(id_token)
+        uid = decoded_token.get('uid')
+        email = decoded_token.get('email')
+        phone_number = decoded_token.get('phone_number')
+        
+        # Check if user exists in the Tix DB
+        user = User.query.filter_by(firebase_uid=uid).first()
+        
+        if not user:
+            # AUTO-REGISTER: First time logging into Tix using their TV Unified ID
+            base_username = email.split('@')[0] if email else f"User_{uid[:6]}"
+            approval_status = 'pending' if requested_role == 'organizer' else 'approved'
             
-            # NEW: Check if email is confirmed
-            if not user.is_email_confirmed:
-                flash('Please activate your account first. Check your email for the activation link.', 'warning')
-                return redirect(url_for('login'))
-                
-            # NEW: Check if user is suspended
-            if user.is_suspended:
-                flash('Your account has been suspended. Please contact support.', 'danger')
-                return redirect(url_for('login'))
-                
-            login_user(user, remember=True)
-            next_page = request.args.get('next')
-            if not next_page or not next_page.startswith('/'):
-                next_page = url_for('profile')
-            return redirect(next_page)
-        flash('Login failed. Please check your credentials.', 'danger')
-    return render_template('login.html')
+            user = User(
+                firebase_uid=uid,
+                email=email,
+                phone_number=phone_number,
+                username=base_username,
+                role=requested_role,
+                approval_status=approval_status
+            )
+            db.session.add(user)
+            db.session.commit()
+        else:
+            # Sync any new phone/email data from Firebase
+            if email and not user.email: user.email = email
+            if phone_number and not user.phone_number: user.phone_number = phone_number
+            db.session.commit()
+
+        if user.is_suspended:
+            return jsonify({"error": "Account suspended", "redirect": url_for('login')}), 403
+
+        # Log them into Flask's session system
+        login_user(user, remember=True)
+        return jsonify({"status": "success", "redirect": url_for('profile')}), 200
+        
+    except Exception as e:
+        print(f"Firebase Verify Error: {e}")
+        return jsonify({"error": "Invalid authentication token"}), 401
 
 @app.route('/logout')
 def logout():
@@ -363,6 +331,7 @@ def logout():
 @login_required
 def profile():
     return render_template('profile.html', tickets=current_user.tickets, events=current_user.events)
+
 
 # --- ADMIN LOGIC ---
 
@@ -377,9 +346,7 @@ def admin_dashboard():
     events = Event.query.all()
     tickets = Ticket.query.all()
     
-    # Calculate total revenue from successful ticket sales
     total_revenue = sum(ticket.price_paid for ticket in tickets if ticket.payment_status == 'success')
-    
     return render_template('admin_dashboard.html', users=users, events=events, tickets=tickets, total_revenue=total_revenue)
 
 @app.route('/admin/approvals')
@@ -388,7 +355,6 @@ def admin_approvals():
     if current_user.role != 'admin':
         flash('Unauthorized access.', 'danger')
         return redirect(url_for('index'))
-    # Fetch only organizers, ordered newest first
     users = User.query.filter_by(role='organizer').order_by(User.id.desc()).all() 
     return render_template('admin_approvals.html', users=users)
 
@@ -410,117 +376,68 @@ def admin_events():
     events = Event.query.all()
     return render_template('admin_events.html', events=events)
 
-@app.route('/admin/audit')
-@login_required
-def admin_audit_log():
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    return render_template('admin_audit_log.html')
-
 # --- ADMIN ACTION ROUTES ---
 
 @app.route('/admin/users/<int:user_id>/suspend', methods=['POST'])
 @login_required
 def suspend_user(user_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
-        flash("You cannot suspend yourself.", 'warning')
-    else:
+    if user.id != current_user.id:
         user.is_suspended = True
         db.session.commit()
-        flash(f"User {user.username} has been suspended.", 'success')
-        
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<int:user_id>/unsuspend', methods=['POST'])
 @login_required
 def unsuspend_user(user_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     user = User.query.get_or_404(user_id)
     user.is_suspended = False
     db.session.commit()
-    flash(f"User {user.username} has been unsuspended.", 'success')
-        
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<int:user_id>/delete', methods=['POST'])
 @login_required
 def delete_user(user_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     user = User.query.get_or_404(user_id)
-    if user.id == current_user.id:
-        flash("You cannot delete yourself.", 'warning')
-    else:
-        # Note: Depending on your database setup, deleting a user might fail if they have attached events/tickets.
-        # You may need to handle cascading deletes or just stick to suspending.
+    if user.id != current_user.id:
         try:
             db.session.delete(user)
             db.session.commit()
-            flash(f"User {user.username} has been deleted.", 'success')
-        except Exception as e:
+        except Exception:
             db.session.rollback()
-            flash(f"Could not delete user. They may have existing events or tickets. Suspend them instead.", 'danger')
-            
     return redirect(url_for('admin_users'))
 
 @app.route('/admin/users/<int:user_id>/approve', methods=['POST'])
 @login_required
 def approve_organizer(user_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     user = User.query.get_or_404(user_id)
     user.approval_status = 'approved'
     db.session.commit()
-    flash(f"Organizer {user.username} has been approved.", 'success')
     return redirect(url_for('admin_approvals'))
 
 @app.route('/admin/events/<int:event_id>/toggle_feature', methods=['POST'])
 @login_required
 def toggle_feature_event(event_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     event = Event.query.get_or_404(event_id)
-    # Toggle the is_featured status
     event.is_featured = not event.is_featured
     db.session.commit()
-    
-    status = "featured" if event.is_featured else "un-featured"
-    flash(f'Event "{event.name}" is now {status}.', 'success')
     return redirect(url_for('admin_events'))
 
 @app.route('/admin/events/<int:event_id>/delete', methods=['POST'])
 @login_required
 def delete_event(event_id):
-    if current_user.role != 'admin':
-        flash('Unauthorized access.', 'danger')
-        return redirect(url_for('index'))
-    
+    if current_user.role != 'admin': return redirect(url_for('index'))
     event = Event.query.get_or_404(event_id)
-    
-    # Safely try to delete the event
     try:
         db.session.delete(event)
         db.session.commit()
-        flash(f'Event "{event.name}" has been successfully deleted.', 'success')
-    except Exception as e:
+    except Exception:
         db.session.rollback()
-        flash(f'Could not delete event. It likely has purchased tickets attached to it. Try suspending the organizer instead.', 'danger')
-        
     return redirect(url_for('admin_events'))
 
 # --- API & TESTING LOGIC ---
@@ -536,113 +453,12 @@ def airtel_tester():
         test_result, raw_req = initiate_ussd_push(msisdn, amount, partner_id)
     return render_template('airtel_tester.html', result=test_result, request_body=raw_req)
 
-@app.route('/api/test-payment', methods=['POST'])
-def api_test_payment():
-    data = request.json
-    if not data:
-        return jsonify({"error": "Invalid JSON"}), 400
-    msisdn = data.get('phone')
-    amount = data.get('amount', 1.0)
-    partner_id = f"TEST-{uuid.uuid4().hex[:8]}"
-    result, payload = initiate_ussd_push(msisdn, amount, partner_id)
-    return jsonify({
-        "status": "initiated",
-        "request_sent_to_airtel": payload,
-        "response_from_airtel": result
-    })
-
-# --- PASSWORD RESET LOGIC ---
-
-@app.route('/forgot-password', methods=['GET', 'POST'])
-def forgot_password():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        user = User.query.filter_by(email=email).first()
-        if user:
-            # Generate secure token
-            s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-            token = s.dumps(user.email, salt='password-reset-salt')
-            reset_url = url_for('reset_password', token=token, _external=True)
-            
-            # Send Email
-            try:
-                msg = Message("Reset Your Inwit Tix Password", recipients=[user.email])
-                logo_url = url_for('static', filename='logo.png', _external=True)
-                # Use the new HTML template instead of the hardcoded string
-                msg.html = render_template('reset_email.html', user=user, reset_url=reset_url, logo_url=logo_url)
-                mail.send(msg)
-                print(f"Sent reset email to {user.email}")
-            except Exception as e:
-                print(f"Failed to send reset email: {e}")
-                
-        flash('If an account exists for that email, a reset link has been sent.', 'info')
-        return redirect(url_for('login'))
-    return render_template('forgot_password.html')
-
-@app.route('/reset-password/<token>', methods=['GET', 'POST'])
-def reset_password(token):
-    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-    try:
-        # Token expires in 3600 seconds (1 hour)
-        email = s.loads(token, salt='password-reset-salt', max_age=3600)
-    except Exception as e:
-        flash('The password reset link is invalid or has expired.', 'danger')
-        return redirect(url_for('login'))
-        
-    if request.method == 'POST':
-        user = User.query.filter_by(email=email).first()
-        if user:
-            new_password = request.form.get('password')
-            user.password_hash = bcrypt.generate_password_hash(new_password).decode('utf-8')
-            db.session.commit()
-            flash('Your password has been successfully updated! You can now log in.', 'success')
-            return redirect(url_for('login'))
-            
-    return render_template('reset_password.html')
-
-@app.route('/resend-activation', methods=['GET', 'POST'])
-def resend_activation():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        user = User.query.filter_by(email=email).first()
-        if user:
-            if user.is_email_confirmed:
-                flash('Your account is already activated. You can log in.', 'info')
-            else:
-                send_activation_email(user)
-                flash('A new activation link has been sent to your email.', 'success')
-        else:
-            flash('Email not found.', 'danger')
-        return redirect(url_for('login'))
-    return render_template('resend_activation.html')
-
-# NEW: Activation Route Handler
-@app.route('/activate/<token>')
-def activate_email(token):
-    s = URLSafeTimedSerializer(app.config['SECRET_KEY'])
-    try:
-        # Link expires in 24 hours (86400 seconds)
-        email = s.loads(token, salt='email-activate-salt', max_age=86400) 
-    except Exception:
-        flash('The activation link is invalid or has expired.', 'danger')
-        return redirect(url_for('login'))
-        
-    user = User.query.filter_by(email=email).first()
-    if user:
-        if user.is_email_confirmed:
-            flash('Account already activated. Please log in.', 'info')
-        else:
-            user.is_email_confirmed = True
-            db.session.commit()
-            flash('Your account has been successfully activated! You can now log in.', 'success')
-    return redirect(url_for('login'))
 
 # --- EVENT & TICKETING LOGIC ---
 
 @app.route('/create_event', methods=['GET', 'POST'])
 @login_required
 def create_event():
-    # NEW: Prevent pending organizers from creating events
     if current_user.role == 'organizer' and current_user.approval_status != 'approved':
         flash('Your organizer account is pending approval. You cannot create events yet.', 'warning')
         return redirect(url_for('profile'))
@@ -683,7 +499,14 @@ def event_detail(event_id):
 def purchase_ticket(event_id):
     event = Event.query.get_or_404(event_id)
     ticket_type = request.form.get('ticket_type')
-    phone = request.form.get('phone_number')
+    
+    # Try to grab phone from form, fallback to user's registered phone
+    phone = request.form.get('phone_number') or current_user.phone_number
+    
+    if not phone:
+        flash("A phone number is required for Airtel Money.", "danger")
+        return redirect(url_for('event_detail', event_id=event.id))
+        
     price = 0
     if ticket_type == 'Ordinary': price = event.price_ordinary
     elif ticket_type == 'VIP': price = event.price_vip
@@ -695,7 +518,7 @@ def purchase_ticket(event_id):
     )
     db.session.add(new_ticket)
     db.session.commit()
-    # Initiate Airtel Payment
+    
     res_data, payload = initiate_ussd_push(phone, price, partner_id)
     if isinstance(res_data, dict) and res_data.get('status', {}).get('success'):
         new_ticket.airtel_id = res_data.get('data', {}).get('transaction', {}).get('id')
@@ -750,6 +573,11 @@ def download_ticket(ticket_id):
 def resend_email_ticket(ticket_id):
     ticket = Ticket.query.get_or_404(ticket_id)
     if ticket.owner != current_user: return "Unauthorized", 403
+    
+    if not current_user.email:
+        flash('You must add an email to your profile to receive digital tickets.', 'warning')
+        return redirect(url_for('view_ticket', ticket_id=ticket.id))
+        
     if ticket.payment_status != 'success':
         flash('Ticket must be paid before emailing.', 'warning')
     else:
