@@ -29,10 +29,11 @@ app = Flask(__name__)
 # Essential for handling HTTPS and custom domains
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1, x_prefix=1)
 
-# Database Setup (Point this to your NEW AWS RDS PostgreSQL endpoint in your .env)
+# Database Setup
 DATABASE_URL = os.environ.get('DATABASE_URL')
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):
-    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
+    # Updated to use psycopg 3 formatting for AWS compatibility
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql+psycopg://", 1)
 
 app.config['SQLALCHEMY_DATABASE_URI'] = DATABASE_URL
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'default-dev-secret-key-123')
@@ -60,18 +61,57 @@ app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() in ['true', '1', 't']
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'hello@tix.inwitsystems.com')
 
-# Initialize Firebase Admin
-firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-adminsdk.json')
-if os.path.exists(firebase_cred_path):
-    cred = credentials.Certificate(firebase_cred_path)
-    firebase_admin.initialize_app(cred)
-else:
-    print(f"WARNING: Firebase credentials not found at {firebase_cred_path}. Auth will fail.")
+# --- FIREBASE INITIALIZATION UPDATE ---
+try:
+    # 1. First, check if the credentials are provided securely via AWS Environment Variables
+    firebase_cred_json = os.environ.get('FIREBASE_CRED_JSON')
+    
+    # 2. Fallback to the local file path as requested
+    firebase_cred_path = os.environ.get('FIREBASE_CREDENTIALS', 'serviceAccountKey.json')
+    
+    if firebase_cred_json:
+        cred_dict = json.loads(firebase_cred_json)
+        cred = credentials.Certificate(cred_dict)
+        firebase_admin.initialize_app(cred)
+        print("Firebase successfully initialized from AWS Environment Variables.")
+    elif os.path.exists(firebase_cred_path):
+        cred = credentials.Certificate(firebase_cred_path)
+        firebase_admin.initialize_app(cred)
+        print(f"Firebase successfully initialized from {firebase_cred_path}.")
+    else:
+        print(f"WARNING: Firebase credentials not found. Ensure {firebase_cred_path} exists or FIREBASE_CRED_JSON is set.")
+except ValueError:
+    # This prevents the app from crashing if Firebase is already initialized (common during server restarts)
+    pass
+# --------------------------------------
 
 db = SQLAlchemy(app)
 mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
+
+# --- AUTO-INITIALIZE AWS DATABASE ---
+with app.app_context():
+    # This safely creates tables if they don't exist yet
+    db.create_all()
+    
+    # Create the default admin account if it doesn't exist
+    admin_email = "admin@inwittix.com"
+    if not User.query.filter_by(email=admin_email).first():
+        new_admin = User(
+            username="System Admin", 
+            email=admin_email, 
+            # Note: Because of Firebase auth, this password isn't actually used for login anymore, 
+            # but we initialize the user object to give you admin rights.
+            firebase_uid="admin_setup_uid_12345", 
+            role="admin", 
+            approval_status="approved",
+            is_suspended=False
+        )
+        db.session.add(new_admin)
+        db.session.commit()
+        print(f"Created default admin user: {admin_email}")
+
 
 # --- Database Models ---
 
